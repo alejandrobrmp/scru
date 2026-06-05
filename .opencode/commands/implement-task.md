@@ -14,5 +14,7 @@ Requirements:
 - Keep the scope to one task only.
 - Generate or update unit tests as part of the implementation.
 - Run the task-relevant unit tests by default.
+- When the task changes CLI behavior, run the actual app entrypoint once as part of verification, not just the test suite.
+- Prefer splitting growing features into small modules: keep entrypoints thin, move shared constants into a constants module, and place wizard or run-mode placeholders in their own modules when that improves clarity.
 - Commit all changes unless the user says otherwise.
 - Open a draft pull request back to `develop`.
