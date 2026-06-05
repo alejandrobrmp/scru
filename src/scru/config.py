@@ -6,8 +6,6 @@ from typing import Any
 
 import yaml
 
-TOKEN_ENV_VAR = "CLOUDFLARE_API_TOKEN"
-
 
 class ConfigError(ValueError):
     pass
