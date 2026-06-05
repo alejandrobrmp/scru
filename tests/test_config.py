@@ -1,4 +1,5 @@
 import pytest
+import yaml
 
 from scru.config import Config, ConfigError, RecordConfig, SourceConfig, load_config, save_config
 
@@ -50,14 +51,15 @@ def test_save_config_writes_yaml(tmp_path):
 
     save_config(config_path, config)
 
-    assert config_path.read_text(encoding="utf-8") == (
-        "records:\n"
-        "  - zone_id: zone-1\n"
-        "    name: www\n"
-        "    source:\n"
-        "      type: custom\n"
-        "      command: get-ip\n"
-    )
+    assert yaml.safe_load(config_path.read_text(encoding="utf-8")) == {
+        "records": [
+            {
+                "zone_id": "zone-1",
+                "name": "www",
+                "source": {"type": "custom", "command": "get-ip"},
+            }
+        ]
+    }
 
 
 def test_load_config_accepts_empty_records(tmp_path):

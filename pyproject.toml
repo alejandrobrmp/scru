@@ -9,6 +9,7 @@ description = "Simple Cloudflare Record Updater"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
+dependencies = ["PyYAML>=6.0"]
 
 [project.scripts]
 scru = "scru.cli:main"

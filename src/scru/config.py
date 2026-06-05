@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 TOKEN_ENV_VAR = "CLOUDFLARE_API_TOKEN"
 
 
@@ -116,130 +118,17 @@ class Config:
 
 def load_config(path: Path) -> Config:
     with path.open("r", encoding="utf-8") as handle:
-        data = _parse_yaml(handle.read())
+        data = yaml.safe_load(handle) or {}
     return Config.from_dict(data)
 
 
 def save_config(path: Path, config: Config) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="\n") as handle:
-        handle.write(_dump_yaml(config.to_dict()))
-
-
-def _parse_yaml(text: str) -> dict[str, Any]:
-    lines = [line.rstrip() for line in text.splitlines() if line.strip()]
-    if not lines:
-        return {}
-
-    result: dict[str, Any] = {}
-    index = 0
-    while index < len(lines):
-        line = lines[index]
-        if line == "zones: []":
-            result["zones"] = []
-            index += 1
-            continue
-        if line == "records: []":
-            result["records"] = []
-            index += 1
-            continue
-        if line == "zones:":
-            zones, index = _parse_list(lines, index + 1, "zones")
-            result["zones"] = zones
-            continue
-        if line == "records:":
-            records, index = _parse_list(lines, index + 1, "records")
-            result["records"] = records
-            continue
-        key, value = _parse_key_value(line)
-        result[key] = value
-        index += 1
-    return result
-
-
-def _parse_list(lines: list[str], index: int, field_name: str) -> tuple[list[dict[str, Any]], int]:
-    items: list[dict[str, Any]] = []
-    current: dict[str, Any] | None = None
-    while index < len(lines):
-        line = lines[index]
-        if not line.startswith("  "):
-            break
-        stripped = line.strip()
-        if stripped.startswith("-"):
-            if current is not None:
-                items.append(current)
-            current = {}
-            remainder = stripped[1:].strip()
-            if remainder:
-                key, value = _parse_key_value(remainder)
-                current[key] = value
-        else:
-            if current is None:
-                raise ConfigError(f"{field_name} entries must start with '-'")
-            if stripped == "source:":
-                source, index = _parse_nested_mapping(lines, index + 1)
-                current["source"] = source
-                continue
-            key, value = _parse_key_value(stripped)
-            current[key] = value
-        index += 1
-    if current is not None:
-        items.append(current)
-    return items, index
-
-
-def _parse_nested_mapping(lines: list[str], index: int) -> tuple[dict[str, Any], int]:
-    mapping: dict[str, Any] = {}
-    while index < len(lines):
-        line = lines[index]
-        if not line.startswith("      "):
-            break
-        if line.strip() == "":
-            index += 1
-            continue
-        key, value = _parse_key_value(line.strip())
-        mapping[key] = value
-        index += 1
-    return mapping, index
-
-
-def _parse_key_value(line: str) -> tuple[str, Any]:
-    if ":" not in line:
-        raise ConfigError(f"invalid line: {line}")
-    key, raw_value = line.split(":", 1)
-    value = raw_value.strip()
-    return key.strip(), _parse_scalar(value)
-
-
-def _parse_scalar(value: str) -> Any:
-    if value == "":
-        return None
-    if value == "true":
-        return True
-    if value == "false":
-        return False
-    if value.isdigit():
-        return int(value)
-    return value
-
-
-def _dump_yaml(data: dict[str, Any]) -> str:
-    lines: list[str] = []
-    if data["records"]:
-        lines.append("records:")
-        for record in data["records"]:
-            lines.append(f"  - zone_id: {record['zone_id']}")
-            lines.append(f"    name: {record['name']}")
-            lines.append("    source:")
-            lines.append(f"      type: {record['source']['type']}")
-            if record['source'].get("value") is not None:
-                lines.append(f"      value: {record['source']['value']}")
-            if record['source'].get("command") is not None:
-                lines.append(f"      command: {record['source']['command']}")
-            if record.get("proxied") is not None:
-                lines.append(f"    proxied: {'true' if record['proxied'] else 'false'}")
-            if record.get("ttl") is not None:
-                lines.append(f"    ttl: {record['ttl']}")
-    else:
-        lines.append("records: []")
-    return "\n".join(lines) + "\n"
+        yaml.safe_dump(
+            config.to_dict(),
+            handle,
+            sort_keys=False,
+            allow_unicode=True,
+            default_flow_style=False,
+        )
