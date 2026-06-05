@@ -18,7 +18,8 @@ Create a narrow, executable spec for one task at a time.
 3. Read the latest completed task spec, if one exists.
 4. Refine only the next task, not the whole roadmap.
 5. Keep the spec small, explicit, and manually executable by the developer.
-6. Write the new spec to `tasks/<number>-<slug>.md`.
+6. If any task detail is uncertain, ask the user and wait for the answer before writing the spec.
+7. Write the new spec to `tasks/<number>-<slug>.md`.
 
 ## Required Sections
 
@@ -40,6 +41,7 @@ Each task spec should include:
 - Use the previous task result to refine the next task.
 - Avoid broad scope expansion.
 - Keep the task aligned with the frozen spec.
+- When a task can be solved with a reputable free external library and the work is trivial, prefer that option over custom code.
 
 ## Output
 

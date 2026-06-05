@@ -27,15 +27,16 @@ Create a complete manual workflow for one task: branch, implement, test, commit,
 12. Prefer smaller or faster models for narrow search and classification work.
 13. Prefer stronger models for synthesis, edge cases, and final review.
 14. Check `Context7` when the task depends on external library, framework, SDK, or CLI documentation.
-15. Prefer small, explicit module boundaries for growing features: keep entrypoints thin, move constants to dedicated modules, and place placeholder behavior in separate modules when that clarifies ownership.
-16. Implement the task.
-17. Add or update unit tests for the changed behavior.
-18. Run the task-relevant unit tests by default.
-19. Run the actual app entrypoint at least once when the task touches CLI behavior, so the executable path is verified in addition to tests.
-20. Fix failures until the task passes.
-21. Commit all changes unless the user says otherwise.
-22. Push the branch.
-23. Open a draft pull request back to `develop`.
+15. For trivial work, consider reputable free external libraries before custom implementation.
+16. Prefer small, explicit module boundaries for growing features: keep entrypoints thin, move constants to dedicated modules, and place placeholder behavior in separate modules when that clarifies ownership.
+17. Implement the task.
+18. Add or update unit tests for the changed behavior.
+19. Run the task-relevant unit tests by default.
+20. Run the actual app entrypoint at least once when the task touches CLI behavior, so the executable path is verified in addition to tests.
+21. Fix failures until the task passes.
+22. Commit all changes unless the user says otherwise.
+23. Push the branch.
+24. Open a draft pull request back to `develop`.
 
 ## Required Sections for a Task Plan
 
