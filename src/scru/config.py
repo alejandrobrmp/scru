@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+TOKEN_ENV_VAR = "CLOUDFLARE_API_TOKEN"
+
 
 class ConfigError(ValueError):
     pass
@@ -45,30 +47,6 @@ class SourceConfig:
             data["value"] = self.value
         if self.command is not None:
             data["command"] = self.command
-        return data
-
-
-@dataclass(slots=True)
-class ZoneConfig:
-    id: str
-    name: str | None = None
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ZoneConfig":
-        if not isinstance(data, dict):
-            raise ConfigError("zone entries must be mappings")
-
-        zone_id = data.get("id")
-        if not zone_id:
-            raise ConfigError("zones[].id is required")
-
-        name = data.get("name")
-        return cls(id=str(zone_id), name=None if name is None else str(name))
-
-    def to_dict(self) -> dict[str, Any]:
-        data: dict[str, Any] = {"id": self.id}
-        if self.name is not None:
-            data["name"] = self.name
         return data
 
 
@@ -119,8 +97,6 @@ class RecordConfig:
 
 @dataclass(slots=True)
 class Config:
-    token_env_var: str
-    zones: list[ZoneConfig] = field(default_factory=list)
     records: list[RecordConfig] = field(default_factory=list)
 
     @classmethod
@@ -128,30 +104,14 @@ class Config:
         if not isinstance(data, dict):
             raise ConfigError("config must be a mapping")
 
-        token_env_var = data.get("token_env_var")
-        if not token_env_var:
-            raise ConfigError("token_env_var is required")
-
-        if "zones" not in data:
-            raise ConfigError("zones is required")
         if "records" not in data:
             raise ConfigError("records is required")
 
-        zones = [ZoneConfig.from_dict(zone) for zone in data["zones"]]
         records = [RecordConfig.from_dict(record) for record in data["records"]]
-        zone_ids = {zone.id for zone in zones}
-        for record in records:
-            if record.zone_id not in zone_ids:
-                raise ConfigError(f"records[].zone_id not found: {record.zone_id}")
-
-        return cls(token_env_var=str(token_env_var), zones=zones, records=records)
+        return cls(records=records)
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "token_env_var": self.token_env_var,
-            "zones": [zone.to_dict() for zone in self.zones],
-            "records": [record.to_dict() for record in self.records],
-        }
+        return {"records": [record.to_dict() for record in self.records]}
 
 
 def load_config(path: Path) -> Config:
@@ -265,15 +225,6 @@ def _parse_scalar(value: str) -> Any:
 
 def _dump_yaml(data: dict[str, Any]) -> str:
     lines: list[str] = []
-    lines.append(f"token_env_var: {data['token_env_var']}")
-    if data["zones"]:
-        lines.append("zones:")
-        for zone in data["zones"]:
-            lines.append(f"  - id: {zone['id']}")
-            if zone.get("name") is not None:
-                lines.append(f"    name: {zone['name']}")
-    else:
-        lines.append("zones: []")
     if data["records"]:
         lines.append("records:")
         for record in data["records"]:
