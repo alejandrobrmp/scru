@@ -21,4 +21,4 @@ Requirements:
 - If the standard task workflow applies, create the branch first from `develop` using `feature/<slug>`.
 - If the user explicitly wants to work on the current branch or directly on `develop`, follow that instruction and skip branch creation.
 - Before any commit or PR step, verify the diff against the intended base or current branch and make sure no unrelated files are included.
-- Only commit, push, or open a draft PR when the user asked for the full delivery loop or explicitly requested those steps.
+- If the current work is not happening in `develop`, commit every change relatwd with the task and open a PR.

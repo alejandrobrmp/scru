@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 from pathlib import Path
 from typing import Callable
 
@@ -11,7 +12,17 @@ SourceResolver = Callable[[SourceConfig], str]
 
 
 def resolve_source_ipv4(source: SourceConfig) -> str:
-    raise NotImplementedError("source resolution is not implemented yet")
+    if source.type != "fixed":
+        raise ValueError(f"unsupported source type: {source.type}")
+
+    if source.value is None:
+        raise ValueError("source.value is required for fixed source")
+
+    address = ipaddress.ip_address(source.value)
+    if address.version != 4:
+        raise ValueError("source.value must be an IPv4 address")
+
+    return str(address)
 
 
 def process_record(
