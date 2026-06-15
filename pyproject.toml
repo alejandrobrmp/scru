@@ -11,6 +11,9 @@ requires-python = ">=3.11"
 license = { text = "MIT" }
 dependencies = ["PyYAML>=6.0"]
 
+[project.optional-dependencies]
+test = ["pytest>=8.0", "python-dotenv>=1.0"]
+
 [project.scripts]
 scru = "scru.cli:main"
 
@@ -19,3 +22,8 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+console_output_style = "classic"
+log_cli = true
+log_cli_level = "INFO"

@@ -1,7 +1,8 @@
-name: PR Unit Tests
+name: Unit Tests
 
 on:
-  pull_request:
+  workflow_call:
+  workflow_dispatch:
 
 jobs:
   unit-tests:
