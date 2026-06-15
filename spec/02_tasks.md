@@ -38,6 +38,13 @@ Workflow:
 - Support user-provided IPv4 input as a record source.
 - Validate IPv4 format before update.
 
+5_1. Integration tests
+- Execute the app against real Cloudflare with positive and negative cases.
+- Use a local untracked `.env` for integration-only secrets and test values.
+- Store scenario YAMLs under `tests/integration/cases/` and keep zone/record names out of plain text.
+- Copy config YAMLs into the config path from `src/scru/constants.py` and clean them up after each case.
+- Create and remove Cloudflare resources per test, including crash cleanup.
+
 6. Public source support
 - Fetch current public IPv4 of the machine.
 - Plug it into the same record update flow.
