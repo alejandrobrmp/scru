@@ -1,7 +1,7 @@
 # Task 4: One-Record Update Slice
 
 ## Goal
-Implement the record update flow for one configured `A` record.
+Implement the record update flow for one configured record.
 
 ## Scope
 - Read the existing config model from task 3.
@@ -21,7 +21,7 @@ Implement the record update flow for one configured `A` record.
 - `spec/02_tasks.md`
 
 ## Acceptance Criteria
-- A single configured `A` record can be processed end to end.
+- A single configured record can be processed end to end.
 - The source IPv4 is resolved before any Cloudflare update call.
 - If the current record already matches the source IPv4, the record is skipped.
 - If the value differs, the record is updated.
@@ -30,6 +30,7 @@ Implement the record update flow for one configured `A` record.
 
 ## Implementation Notes
 - Keep this task focused on one record only; do not add multi-record iteration yet.
+- The current config model does not track record type, so keep this slice generic over the record payload.
 - Do not implement fixed, public, or custom source behavior here beyond the flow needed to call the source resolver interface.
 - Do not add wizard changes here.
 - Prefer the smallest practical shape for the Cloudflare client boundary so later tasks can extend it.
