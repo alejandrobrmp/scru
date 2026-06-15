@@ -32,7 +32,7 @@ Execute one task end to end for the current request: inspect, implement, verify,
 15. Run the actual app entrypoint at least once when the task touches CLI behavior, so the executable path is verified in addition to tests.
 16. Fix failures until the task passes.
 17. If the request includes delivery steps, inspect `git status` and the diff against the intended base or current branch before committing.
-18. Commit, push, and open a draft PR only when the user explicitly asked for that full delivery loop.
+18. If the current work is not happening in `develop`, commit every change relatwd with the task and open a PR.
 
 ## Rules
 
