@@ -1,5 +1,5 @@
 from scru.config import Config, RecordConfig, SourceConfig
-from scru.run_mode import main, process_record
+from scru.update import main, process_record
 
 
 class RecordingClient:

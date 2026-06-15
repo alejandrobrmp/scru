@@ -34,6 +34,7 @@ Implement the record update flow for one configured `A` record.
 - Do not add wizard changes here.
 - Prefer the smallest practical shape for the Cloudflare client boundary so later tasks can extend it.
 - Reuse the config records and validation from task 3 rather than introducing a second config shape.
+- Keep the terminal output path simple for now; later tasks can replace `print` with a standardized logging approach if needed.
 
 ## Verification
 - Add or update focused unit tests for:
@@ -49,3 +50,4 @@ Implement the record update flow for one configured `A` record.
 - Add custom source support.
 - Expand from one record to all configured records.
 - Add proxied and TTL rule handling.
+- Carry the remaining source-specific acceptance criteria into the later source tasks.

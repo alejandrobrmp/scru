@@ -6,7 +6,7 @@ from typing import Callable
 
 from .constants import CONFIG_PATH, MISSING_CONFIG_MESSAGE
 from .helpers import config_exists
-from .run_mode import main as run_mode_main
+from .update import main as run_mode_main
 from .wizard import main as wizard_main
 
 def main(
