@@ -2,7 +2,7 @@
 description: Refine the next task spec
 ---
 
-Refine the next task using the frozen spec, the roadmap or task list, and the latest completed task spec in `tasks/`.
+Refine the next task using the frozen spec, the roadmap or task list, and the latest relevant task outcome in `tasks/`.
 
 Use the `refine-task` skill.
 
@@ -16,5 +16,6 @@ Requirements:
 - Reflect any module splits, test renames, or ownership changes from the previous task in the new spec.
 - Write the refined spec as a new file under `tasks/`.
 - Keep the roadmap file as roadmap-only.
+- Write the file directly, then summarize the resulting spec and any open questions.
 
 If no next task is obvious, identify the current roadmap position and ask for the target task.

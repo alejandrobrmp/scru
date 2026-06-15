@@ -13,6 +13,7 @@
 
 - Do not plan for direct pushes or commits to `master`.
 - Do not use `develop` for routine direct pushes or commits.
+- If the user explicitly asks to work on the current branch or directly on `develop`, treat that as a scoped exception for that session.
 - PRs should run unit tests.
 - Releases should build from tagged `master` commits.
 
