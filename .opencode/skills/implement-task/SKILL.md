@@ -34,9 +34,11 @@ Create a complete manual workflow for one task: branch, implement, test, commit,
 19. Run the task-relevant unit tests by default.
 20. Run the actual app entrypoint at least once when the task touches CLI behavior, so the executable path is verified in addition to tests.
 21. Fix failures until the task passes.
-22. Commit all changes unless the user says otherwise.
-23. Push the branch.
-24. Open a draft pull request back to `develop`.
+22. Before committing, inspect `git status` and the branch diff against the PR base to ensure no unrelated files or stale history are included.
+23. If the local `develop` branch may be behind or ahead of `origin/develop`, verify the intended PR base before pushing.
+24. Commit all changes unless the user says otherwise.
+25. Push the branch.
+26. Open a draft pull request back to `develop`.
 
 ## Required Sections for a Task Plan
 
@@ -63,6 +65,8 @@ When outlining the work, keep it explicit and small:
 - Default to task-relevant unit tests only unless the task spec says otherwise.
 - Commit everything by default.
 - Open a draft PR by default.
+- If the task introduces a module split or rename, update the directly related unit tests and test filenames/names in the same change.
+- If a file is deleted or replaced during a refactor, confirm it is staged and removed from the branch before wrapping.
 
 ## Output
 

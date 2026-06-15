@@ -26,8 +26,10 @@ Resolve review feedback and return the task to a review-ready draft PR state.
 
 - Address only the feedback that applies to the task.
 - Keep the changes minimal and focused.
+- Update tests if needed.
 - Preserve the intent of the existing task spec unless a correction is required.
 - Save any useful technical detail discovered while fixing the review.
+- Include deleted or untracked files in the commit.
 
 ## Output
 

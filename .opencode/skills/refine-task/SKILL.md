@@ -42,6 +42,8 @@ Each task spec should include:
 - Avoid broad scope expansion.
 - Keep the task aligned with the frozen spec.
 - When a task can be solved with a reputable free external library and the work is trivial, prefer that option over custom code.
+- Carry forward any implementation boundaries learned from the previous task.
+- If the next task depends on a structural refactor from the previous one, state that dependency explicitly in the spec.
 
 ## Output
 

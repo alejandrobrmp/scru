@@ -13,6 +13,7 @@ Requirements:
 - Use the previous task outcome to shape the next task.
 - If any detail is uncertain, ask the user before writing the task spec.
 - For trivial work, consider reputable free external libraries before custom implementation.
+- Reflect any module splits, test renames, or ownership changes from the previous task in the new spec.
 - Write the refined spec as a new file under `tasks/`.
 - Keep the roadmap file as roadmap-only.
 

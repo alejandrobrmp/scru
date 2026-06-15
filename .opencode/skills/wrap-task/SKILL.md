@@ -26,6 +26,7 @@ Turn completed work into a clean review-ready draft PR.
 - Only update the task spec when the implementation adds or changes relevant details.
 - Save non-obvious technical details, decisions, or gotchas to memory.
 - Do not skip the commit before opening the draft PR.
+- Before wrapping, confirm `git status` is clean and the branch diff against the PR base contains only the intended task changes.
 
 ## Output
 
