@@ -4,7 +4,7 @@ from scru.cli import main
 from scru.wizard import main as wizard_main
 
 
-def test_main_routes_to_run_mode_when_config_exists(tmp_path, capsys):
+def test_main_routes_to_update_when_config_exists(tmp_path, capsys):
     config_path = tmp_path / "config.yaml"
     config_path.write_text("token: example\n", encoding="utf-8")
     calls = []
