@@ -1,20 +1,21 @@
 from __future__ import annotations
 
 import ipaddress
+import os
 from pathlib import Path
 from typing import Callable
+from urllib.request import urlopen
 
 from .cloudflare import CloudflareClient
 from .config import Config, ConfigError, RecordConfig, SourceConfig, load_config
 from .constants import CONFIG_PATH
 
 SourceResolver = Callable[[SourceConfig], str]
+DEFAULT_PUBLIC_IP_URL = "https://api.ipify.org"
+PUBLIC_IP_URL_ENV_VAR = "SCRU_PUBLIC_IP_URL"
 
 
-def resolve_source_ipv4(source: SourceConfig) -> str:
-    if source.type != "fixed":
-        raise ValueError(f"unsupported source type: {source.type}")
-
+def resolve_fixed_ipv4(source: SourceConfig) -> str:
     if source.value is None:
         raise ValueError("source.value is required for fixed source")
 
@@ -23,6 +24,32 @@ def resolve_source_ipv4(source: SourceConfig) -> str:
         raise ValueError("source.value must be an IPv4 address")
 
     return str(address)
+
+
+def resolve_public_source_ipv4() -> str:
+    target_url = os.environ.get(PUBLIC_IP_URL_ENV_VAR, DEFAULT_PUBLIC_IP_URL)
+
+    with urlopen(target_url) as response:
+        text = response.read().decode("utf-8").strip()
+
+    if not text:
+        raise ValueError("public IP response is empty")
+
+    address = ipaddress.ip_address(text)
+    if address.version != 4:
+        raise ValueError("public IP response must be an IPv4 address")
+
+    return str(address)
+
+
+def resolve_source_ipv4(source: SourceConfig) -> str:
+    match source.type:
+        case "fixed":
+            return resolve_fixed_ipv4(source)
+        case "public":
+            return resolve_public_source_ipv4()
+        case _:
+            raise ValueError(f"unsupported source type: {source.type}")
 
 
 def process_record(
