@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import ipaddress
 import os
+import shlex
+import subprocess
 from pathlib import Path
 from typing import Callable
 from urllib.request import urlopen
@@ -13,6 +15,7 @@ from .constants import CONFIG_PATH
 SourceResolver = Callable[[SourceConfig], str]
 DEFAULT_PUBLIC_IP_URL = "https://api.ipify.org"
 PUBLIC_IP_URL_ENV_VAR = "SCRU_PUBLIC_IP_URL"
+CUSTOM_SOURCE_TIMEOUT_SECONDS = 10
 
 
 def resolve_fixed_ipv4(source: SourceConfig) -> str:
@@ -42,12 +45,48 @@ def resolve_public_source_ipv4() -> str:
     return str(address)
 
 
+def resolve_custom_source_ipv4(source: SourceConfig) -> str:
+    if source.command is None:
+        raise ValueError("source.command is required for custom source")
+
+    command = shlex.split(source.command)
+    try:
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=CUSTOM_SOURCE_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise ValueError(f"custom source command timed out after {CUSTOM_SOURCE_TIMEOUT_SECONDS} seconds") from exc
+
+    if completed.returncode != 0:
+        raise ValueError(f"custom source command failed with exit code {completed.returncode}")
+
+    text = completed.stdout.strip()
+    if not text:
+        raise ValueError("custom source command produced no output")
+
+    try:
+        address = ipaddress.ip_address(text)
+    except ValueError as exc:
+        raise ValueError("custom source command must output exactly one IPv4 address") from exc
+
+    if address.version != 4:
+        raise ValueError("custom source command must output exactly one IPv4 address")
+
+    return str(address)
+
+
 def resolve_source_ipv4(source: SourceConfig) -> str:
     match source.type:
         case "fixed":
             return resolve_fixed_ipv4(source)
         case "public":
             return resolve_public_source_ipv4()
+        case "custom":
+            return resolve_custom_source_ipv4(source)
         case _:
             raise ValueError(f"unsupported source type: {source.type}")
 

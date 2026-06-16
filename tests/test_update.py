@@ -159,15 +159,43 @@ def test_resolve_source_ipv4_rejects_invalid_fixed_ipv4():
         raise AssertionError("expected ValueError")
 
 
-def test_resolve_source_ipv4_rejects_unsupported_source_types():
+def test_resolve_source_ipv4_returns_custom_ipv4(monkeypatch):
     source = SourceConfig(type="custom", command="echo 1.2.3.4")
 
-    try:
-        resolve_source_ipv4(source)
-    except ValueError as exc:
-        assert str(exc) == "unsupported source type: custom"
-    else:
-        raise AssertionError("expected ValueError")
+    monkeypatch.setattr("scru.update.resolve_custom_source_ipv4", lambda custom_source: "198.51.100.7")
+
+    assert resolve_source_ipv4(source) == "198.51.100.7"
+
+
+def test_process_record_rejects_custom_source_failure_before_cloudflare_calls(monkeypatch):
+    record = RecordConfig(
+        zone_id="zone-1",
+        name="www",
+        source=SourceConfig(type="custom", command="get-ip"),
+    )
+
+    class RecordingClient:
+        def __init__(self):
+            self.calls = []
+
+        def get_record(self, zone_id, name):
+            self.calls.append(("get_record", zone_id, name))
+            raise AssertionError("should not reach Cloudflare")
+
+        def update_record(self, zone_id, record_id, content, *, proxied=None, ttl=None):
+            self.calls.append(("update_record", zone_id, record_id, content, proxied, ttl))
+            raise AssertionError("should not reach Cloudflare")
+
+    client = RecordingClient()
+    monkeypatch.setattr(
+        "scru.update.resolve_custom_source_ipv4",
+        lambda source: (_ for _ in ()).throw(ValueError("custom source command produced no output")),
+    )
+
+    result = process_record(record, source_resolver=resolve_source_ipv4, client=client)
+
+    assert client.calls == []
+    assert result == "www: failed (custom source command produced no output)"
 
 
 def test_main_processes_single_record_and_prints_result():
