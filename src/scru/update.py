@@ -7,12 +7,15 @@ from typing import Callable
 from .cloudflare import CloudflareClient
 from .config import Config, ConfigError, RecordConfig, SourceConfig, load_config
 from .constants import CONFIG_PATH
+from .public_ip import fetch_public_ipv4
 
 SourceResolver = Callable[[SourceConfig], str]
 
 
 def resolve_source_ipv4(source: SourceConfig) -> str:
     if source.type != "fixed":
+        if source.type == "public":
+            return fetch_public_ipv4()
         raise ValueError(f"unsupported source type: {source.type}")
 
     if source.value is None:

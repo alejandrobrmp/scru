@@ -112,6 +112,42 @@ def test_resolve_source_ipv4_returns_fixed_ipv4():
     assert resolve_source_ipv4(source) == "203.0.113.10"
 
 
+def test_resolve_source_ipv4_returns_public_ipv4(monkeypatch):
+    source = SourceConfig(type="public")
+
+    monkeypatch.setattr("scru.update.fetch_public_ipv4", lambda: "198.51.100.7")
+
+    assert resolve_source_ipv4(source) == "198.51.100.7"
+
+
+def test_process_record_rejects_invalid_public_source_before_cloudflare_calls(monkeypatch):
+    record = RecordConfig(
+        zone_id="zone-1",
+        name="www",
+        source=SourceConfig(type="public"),
+    )
+
+    class RecordingClient:
+        def __init__(self):
+            self.calls = []
+
+        def get_record(self, zone_id, name):
+            self.calls.append(("get_record", zone_id, name))
+            raise AssertionError("should not reach Cloudflare")
+
+        def update_record(self, zone_id, record_id, content, *, proxied=None, ttl=None):
+            self.calls.append(("update_record", zone_id, record_id, content, proxied, ttl))
+            raise AssertionError("should not reach Cloudflare")
+
+    client = RecordingClient()
+    monkeypatch.setattr("scru.update.fetch_public_ipv4", lambda: (_ for _ in ()).throw(ValueError("public IP response is empty")))
+
+    result = process_record(record, source_resolver=resolve_source_ipv4, client=client)
+
+    assert result == "www: failed (public IP response is empty)"
+    assert client.calls == []
+
+
 def test_resolve_source_ipv4_rejects_invalid_fixed_ipv4():
     source = SourceConfig(type="fixed", value="not-an-ip")
 
@@ -124,12 +160,12 @@ def test_resolve_source_ipv4_rejects_invalid_fixed_ipv4():
 
 
 def test_resolve_source_ipv4_rejects_unsupported_source_types():
-    source = SourceConfig(type="public")
+    source = SourceConfig(type="custom", command="echo 1.2.3.4")
 
     try:
         resolve_source_ipv4(source)
     except ValueError as exc:
-        assert str(exc) == "unsupported source type: public"
+        assert str(exc) == "unsupported source type: custom"
     else:
         raise AssertionError("expected ValueError")
 
