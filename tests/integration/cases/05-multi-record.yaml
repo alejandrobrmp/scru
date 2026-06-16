@@ -1,0 +1,27 @@
+name: multi-record-updates-records
+setup:
+  create_records:
+    - zone_id: ${SCRU_INTEGRATION_ZONE_NAME}
+      name: ${SCRU_INTEGRATION_RECORD_NAME_1}
+      content: ${SCRU_INTEGRATION_INITIAL_IP}
+      proxied: false
+      ttl: 1
+    - zone_id: ${SCRU_INTEGRATION_ZONE_NAME}
+      name: ${SCRU_INTEGRATION_RECORD_NAME_2}
+      content: ${SCRU_INTEGRATION_INITIAL_IP}
+      proxied: false
+      ttl: 1
+config_yaml: |
+  records:
+    - zone_id: ${SCRU_INTEGRATION_ZONE_NAME}
+      name: ${SCRU_INTEGRATION_RECORD_NAME_1}
+      source:
+        type: fixed
+        value: ${SCRU_INTEGRATION_TARGET_IP}
+      proxied: false
+    - zone_id: ${SCRU_INTEGRATION_ZONE_NAME}
+      name: ${SCRU_INTEGRATION_RECORD_NAME_2}
+      source:
+        type: fixed
+        value: ${SCRU_INTEGRATION_TARGET_IP}
+      proxied: false

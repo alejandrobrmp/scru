@@ -139,10 +139,8 @@ def main(
         output(f"config: failed ({exc})")
         return
 
-    if len(config.records) != 1:
-        output("config: failed (expected exactly one record)")
-        return
-
-    record = config.records[0]
-    record_client = client if client is not None else CloudflareClient()
-    output(process_record(record, source_resolver=source_resolver, client=record_client))
+    record_client = client
+    for record in config.records:
+        if record_client is None:
+            record_client = CloudflareClient()
+        output(process_record(record, source_resolver=source_resolver, client=record_client))
