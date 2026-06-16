@@ -115,7 +115,7 @@ def test_resolve_source_ipv4_returns_fixed_ipv4():
 def test_resolve_source_ipv4_returns_public_ipv4(monkeypatch):
     source = SourceConfig(type="public")
 
-    monkeypatch.setattr("scru.update.fetch_public_ipv4", lambda: "198.51.100.7")
+    monkeypatch.setattr("scru.update.resolve_public_source_ipv4", lambda: "198.51.100.7")
 
     assert resolve_source_ipv4(source) == "198.51.100.7"
 
@@ -140,7 +140,7 @@ def test_process_record_rejects_invalid_public_source_before_cloudflare_calls(mo
             raise AssertionError("should not reach Cloudflare")
 
     client = RecordingClient()
-    monkeypatch.setattr("scru.update.fetch_public_ipv4", lambda: (_ for _ in ()).throw(ValueError("public IP response is empty")))
+    monkeypatch.setattr("scru.update.resolve_public_source_ipv4", lambda: (_ for _ in ()).throw(ValueError("public IP response is empty")))
 
     result = process_record(record, source_resolver=resolve_source_ipv4, client=client)
 

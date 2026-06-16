@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from scru.public_ip import fetch_public_ipv4
+from scru.update import resolve_public_source_ipv4
 
 
 class FakeResponse:
@@ -17,32 +17,38 @@ class FakeResponse:
         return self.body
 
 
-def test_fetch_public_ipv4_returns_ipv4_text():
+def test_resolve_public_source_ipv4_returns_ipv4_text(monkeypatch):
     def opener(url):
-        assert url == "https://example.invalid/ip"
+        assert url == "https://api.ipify.org"
         return FakeResponse(b"198.51.100.7\n")
 
-    assert fetch_public_ipv4(opener=opener, url="https://example.invalid/ip") == "198.51.100.7"
+    monkeypatch.setattr("scru.update.urlopen", opener)
+
+    assert resolve_public_source_ipv4() == "198.51.100.7"
 
 
-def test_fetch_public_ipv4_rejects_empty_response():
+def test_resolve_public_source_ipv4_rejects_empty_response(monkeypatch):
     def opener(url):
         return FakeResponse(b"   \n")
 
+    monkeypatch.setattr("scru.update.urlopen", opener)
+
     try:
-        fetch_public_ipv4(opener=opener, url="https://example.invalid/ip")
+        resolve_public_source_ipv4()
     except ValueError as exc:
         assert str(exc) == "public IP response is empty"
     else:
         raise AssertionError("expected ValueError")
 
 
-def test_fetch_public_ipv4_rejects_non_ipv4_response():
+def test_resolve_public_source_ipv4_rejects_non_ipv4_response(monkeypatch):
     def opener(url):
         return FakeResponse(b"2001:db8::1")
 
+    monkeypatch.setattr("scru.update.urlopen", opener)
+
     try:
-        fetch_public_ipv4(opener=opener, url="https://example.invalid/ip")
+        resolve_public_source_ipv4()
     except ValueError as exc:
         assert str(exc) == "public IP response must be an IPv4 address"
     else:
