@@ -5,7 +5,7 @@ import os
 import shlex
 import subprocess
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable, Mapping
 from urllib.request import urlopen
 
 from .cloudflare import CloudflareClient
@@ -13,9 +13,30 @@ from .config import Config, ConfigError, RecordConfig, SourceConfig, load_config
 from .constants import CONFIG_PATH
 
 SourceResolver = Callable[[SourceConfig], str]
+OutputFn = Callable[[str], None]
 DEFAULT_PUBLIC_IP_URL = "https://api.ipify.org"
 PUBLIC_IP_URL_ENV_VAR = "SCRU_PUBLIC_IP_URL"
 CUSTOM_SOURCE_TIMEOUT_SECONDS = 10
+PROXIED_AUTO_TTL = 1
+
+
+def _no_output(_message: str) -> None:
+    pass
+
+
+def _is_unchanged(record: RecordConfig, current: Mapping[str, Any], source_ipv4: str) -> bool:
+    if current.get("content") != source_ipv4:
+        return False
+    if current.get("proxied") != record.proxied:
+        return False
+    if record.proxied is True:
+        # Cloudflare enforces auto TTL (1) for proxied records; SCRU never
+        # sends a ttl for proxied records, so do not fight the provider value.
+        return True
+    current_ttl = current.get("ttl")
+    if current_ttl == PROXIED_AUTO_TTL and record.ttl is None:
+        return True
+    return current_ttl == record.ttl
 
 
 def resolve_fixed_ipv4(source: SourceConfig) -> str:
@@ -96,6 +117,7 @@ def process_record(
     *,
     source_resolver: SourceResolver,
     client: CloudflareClient,
+    output: OutputFn = _no_output,
 ) -> str:
     try:
         source_ipv4 = source_resolver(record.source)
@@ -104,19 +126,24 @@ def process_record(
         if current is None:
             return f"{record.name}: failed (record not found)"
 
-        if current.get("content") == source_ipv4:
+        if _is_unchanged(record, current, source_ipv4):
             return f"{record.name}: skipped (unchanged)"
 
         record_id = current.get("id")
         if not record_id:
             return f"{record.name}: failed (record id missing)"
 
+        ttl_for_patch = record.ttl
+        if record.proxied is True and record.ttl is not None:
+            output(f"{record.name}: warning (ttl ignored for proxied record)")
+            ttl_for_patch = None
+
         client.update_record(
             record.zone_id,
             str(record_id),
             source_ipv4,
             proxied=record.proxied,
-            ttl=record.ttl,
+            ttl=ttl_for_patch,
         )
         return f"{record.name}: updated"
     except Exception as exc:
@@ -143,4 +170,4 @@ def main(
     for record in config.records:
         if record_client is None:
             record_client = CloudflareClient()
-        output(process_record(record, source_resolver=source_resolver, client=record_client))
+        output(process_record(record, source_resolver=source_resolver, client=record_client, output=output))
