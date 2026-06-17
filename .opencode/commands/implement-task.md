@@ -14,6 +14,7 @@ Requirements:
 - Inspect the relevant code paths and task context before editing.
 - Generate or update unit tests as part of the implementation.
 - Run the task-relevant unit tests by default.
+- When the task spec calls for end-to-end coverage (Scope, Acceptance Criteria, or Verification), add or update integration tests in `tests/integration/` following the existing harness, and run the task-relevant integration tests. Integration tests must skip gracefully when required env vars or the local `.env` are missing.
 - When the task changes CLI behavior, run the actual app entrypoint once as part of verification, not just the test suite.
 - For trivial work, consider reputable free external libraries before custom implementation.
 - Prefer splitting growing features into small modules: keep entrypoints thin, move shared constants into a constants module, and place wizard or run-mode placeholders in their own modules when that improves clarity.

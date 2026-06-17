@@ -1,0 +1,17 @@
+name: non-proxied-ttl-skip
+setup:
+  create_records:
+    - zone_id: ${SCRU_INTEGRATION_ZONE_NAME}
+      name: ${SCRU_INTEGRATION_RECORD_NAME_3}
+      content: ${SCRU_INTEGRATION_TARGET_IP}
+      proxied: false
+      ttl: 300
+config_yaml: |
+  records:
+    - zone_id: ${SCRU_INTEGRATION_ZONE_NAME}
+      name: ${SCRU_INTEGRATION_RECORD_NAME_3}
+      source:
+        type: fixed
+        value: ${SCRU_INTEGRATION_TARGET_IP}
+      proxied: false
+      ttl: 300

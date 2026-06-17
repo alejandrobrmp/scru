@@ -61,18 +61,221 @@ def test_process_record_updates_changed_record_after_resolving_source():
     )
     client = RecordingClient(current_record={"id": "record-1", "content": "203.0.113.1"})
     order = []
+    warnings = []
 
     result = process_record(
         record,
         source_resolver=lambda source: order.append(("source", source.type)) or "203.0.113.10",
         client=client,
+        output=warnings.append,
     )
 
     assert result == "www: updated"
     assert order == [("source", "fixed")]
+    assert warnings == ["www: warning (ttl ignored for proxied record)"]
     assert client.calls == [
         ("get_record", "zone-1", "www"),
-        ("update_record", "zone-1", "record-1", "203.0.113.10", True, 120),
+        ("update_record", "zone-1", "record-1", "203.0.113.10", True, None),
+    ]
+
+
+def test_process_record_skips_when_content_proxied_and_ttl_all_match():
+    record = RecordConfig(
+        zone_id="zone-1",
+        name="www",
+        source=SourceConfig(type="fixed", value="203.0.113.10"),
+        proxied=False,
+        ttl=120,
+    )
+    client = RecordingClient(
+        current_record={"id": "record-1", "content": "203.0.113.10", "proxied": False, "ttl": 120}
+    )
+
+    result = process_record(
+        record,
+        source_resolver=lambda source: "203.0.113.10",
+        client=client,
+    )
+
+    assert result == "www: skipped (unchanged)"
+    assert client.calls == [("get_record", "zone-1", "www")]
+
+
+def test_process_record_updates_when_only_proxied_differs():
+    record = RecordConfig(
+        zone_id="zone-1",
+        name="www",
+        source=SourceConfig(type="fixed", value="203.0.113.10"),
+        proxied=True,
+    )
+    client = RecordingClient(
+        current_record={"id": "record-1", "content": "203.0.113.10", "proxied": False, "ttl": 120}
+    )
+    warnings = []
+
+    result = process_record(
+        record,
+        source_resolver=lambda source: "203.0.113.10",
+        client=client,
+        output=warnings.append,
+    )
+
+    assert result == "www: updated"
+    assert warnings == []
+    assert client.calls == [
+        ("get_record", "zone-1", "www"),
+        ("update_record", "zone-1", "record-1", "203.0.113.10", True, None),
+    ]
+
+
+def test_process_record_updates_when_only_ttl_differs_for_non_proxied_record():
+    record = RecordConfig(
+        zone_id="zone-1",
+        name="www",
+        source=SourceConfig(type="fixed", value="203.0.113.10"),
+        proxied=False,
+        ttl=300,
+    )
+    client = RecordingClient(
+        current_record={"id": "record-1", "content": "203.0.113.10", "proxied": False, "ttl": 120}
+    )
+
+    result = process_record(
+        record,
+        source_resolver=lambda source: "203.0.113.10",
+        client=client,
+    )
+
+    assert result == "www: updated"
+    assert client.calls == [
+        ("get_record", "zone-1", "www"),
+        ("update_record", "zone-1", "record-1", "203.0.113.10", False, 300),
+    ]
+
+
+def test_process_record_skips_proxied_record_with_auto_ttl_and_no_config_ttl():
+    record = RecordConfig(
+        zone_id="zone-1",
+        name="www",
+        source=SourceConfig(type="fixed", value="203.0.113.10"),
+        proxied=True,
+    )
+    client = RecordingClient(
+        current_record={"id": "record-1", "content": "203.0.113.10", "proxied": True, "ttl": 1}
+    )
+
+    result = process_record(
+        record,
+        source_resolver=lambda source: "203.0.113.10",
+        client=client,
+    )
+
+    assert result == "www: skipped (unchanged)"
+    assert client.calls == [("get_record", "zone-1", "www")]
+
+
+def test_process_record_skips_proxied_record_with_config_ttl_and_provider_auto_ttl():
+    record = RecordConfig(
+        zone_id="zone-1",
+        name="www",
+        source=SourceConfig(type="fixed", value="203.0.113.10"),
+        proxied=True,
+        ttl=120,
+    )
+    client = RecordingClient(
+        current_record={"id": "record-1", "content": "203.0.113.10", "proxied": True, "ttl": 1}
+    )
+    warnings = []
+
+    result = process_record(
+        record,
+        source_resolver=lambda source: "203.0.113.10",
+        client=client,
+        output=warnings.append,
+    )
+
+    assert result == "www: skipped (unchanged)"
+    assert warnings == []
+    assert client.calls == [("get_record", "zone-1", "www")]
+
+
+def test_process_record_emits_warning_and_omits_ttl_for_proxied_record_with_config_ttl():
+    record = RecordConfig(
+        zone_id="zone-1",
+        name="www",
+        source=SourceConfig(type="fixed", value="203.0.113.10"),
+        proxied=True,
+        ttl=120,
+    )
+    client = RecordingClient(
+        current_record={"id": "record-1", "content": "203.0.113.1", "proxied": True, "ttl": 1}
+    )
+    warnings = []
+
+    result = process_record(
+        record,
+        source_resolver=lambda source: "203.0.113.10",
+        client=client,
+        output=warnings.append,
+    )
+
+    assert result == "www: updated"
+    assert warnings == ["www: warning (ttl ignored for proxied record)"]
+    assert client.calls == [
+        ("get_record", "zone-1", "www"),
+        ("update_record", "zone-1", "record-1", "203.0.113.10", True, None),
+    ]
+
+
+def test_process_record_does_not_warn_for_proxied_record_without_config_ttl():
+    record = RecordConfig(
+        zone_id="zone-1",
+        name="www",
+        source=SourceConfig(type="fixed", value="203.0.113.10"),
+        proxied=True,
+    )
+    client = RecordingClient(
+        current_record={"id": "record-1", "content": "203.0.113.1", "proxied": True, "ttl": 1}
+    )
+    warnings = []
+
+    result = process_record(
+        record,
+        source_resolver=lambda source: "203.0.113.10",
+        client=client,
+        output=warnings.append,
+    )
+
+    assert result == "www: updated"
+    assert warnings == []
+    assert client.calls == [
+        ("get_record", "zone-1", "www"),
+        ("update_record", "zone-1", "record-1", "203.0.113.10", True, None),
+    ]
+
+
+def test_process_record_sends_configured_ttl_for_non_proxied_record():
+    record = RecordConfig(
+        zone_id="zone-1",
+        name="www",
+        source=SourceConfig(type="fixed", value="203.0.113.10"),
+        proxied=False,
+        ttl=300,
+    )
+    client = RecordingClient(
+        current_record={"id": "record-1", "content": "203.0.113.1", "proxied": False, "ttl": 120}
+    )
+
+    result = process_record(
+        record,
+        source_resolver=lambda source: "203.0.113.10",
+        client=client,
+    )
+
+    assert result == "www: updated"
+    assert client.calls == [
+        ("get_record", "zone-1", "www"),
+        ("update_record", "zone-1", "record-1", "203.0.113.10", False, 300),
     ]
 
 
