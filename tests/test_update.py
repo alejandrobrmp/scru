@@ -15,6 +15,22 @@ class RecordingClient:
         self.calls.append(("update_record", zone_id, record_id, content, proxied, ttl))
 
 
+class SequencedClient:
+    def __init__(self, current_records=None, failing_records=None):
+        self.current_records = current_records or {}
+        self.failing_records = failing_records or set()
+        self.calls = []
+
+    def get_record(self, zone_id, name):
+        self.calls.append(("get_record", zone_id, name))
+        if (zone_id, name) in self.failing_records:
+            raise RuntimeError("boom")
+        return self.current_records.get((zone_id, name))
+
+    def update_record(self, zone_id, record_id, content, *, proxied=None, ttl=None):
+        self.calls.append(("update_record", zone_id, record_id, content, proxied, ttl))
+
+
 def test_process_record_skips_unchanged_record():
     record = RecordConfig(
         zone_id="zone-1",
@@ -218,7 +234,7 @@ def test_main_processes_single_record_and_prints_result():
     assert lines == ["www: updated"]
 
 
-def test_main_rejects_multiple_records():
+def test_main_processes_multiple_records_in_order_and_skips_unchanged_records():
     config = Config(
         records=[
             RecordConfig(
@@ -234,12 +250,71 @@ def test_main_rejects_multiple_records():
         ]
     )
     lines = []
+    order = []
+    client = SequencedClient(
+        current_records={
+            ("zone-1", "www"): {"id": "record-1", "content": "203.0.113.10"},
+            ("zone-2", "api"): {"id": "record-2", "content": "203.0.113.1"},
+        }
+    )
 
     main(
         config_loader=lambda path: config,
-        source_resolver=lambda source: "203.0.113.10",
-        client=RecordingClient(),
+        source_resolver=lambda source: order.append(source.value) or str(source.value),
+        client=client,
         output=lines.append,
     )
 
-    assert lines == ["config: failed (expected exactly one record)"]
+    assert order == ["203.0.113.10", "203.0.113.11"]
+    assert lines == ["www: skipped (unchanged)", "api: updated"]
+    assert client.calls == [
+        ("get_record", "zone-1", "www"),
+        ("get_record", "zone-2", "api"),
+        ("update_record", "zone-2", "record-2", "203.0.113.11", None, None),
+    ]
+
+
+def test_main_keeps_running_after_record_failure():
+    config = Config(
+        records=[
+            RecordConfig(
+                zone_id="zone-1",
+                name="www",
+                source=SourceConfig(type="fixed", value="203.0.113.10"),
+            ),
+            RecordConfig(
+                zone_id="zone-2",
+                name="api",
+                source=SourceConfig(type="fixed", value="203.0.113.11"),
+            ),
+            RecordConfig(
+                zone_id="zone-3",
+                name="db",
+                source=SourceConfig(type="fixed", value="203.0.113.12"),
+            ),
+        ]
+    )
+    lines = []
+    client = SequencedClient(
+        current_records={
+            ("zone-1", "www"): {"id": "record-1", "content": "203.0.113.1"},
+            ("zone-3", "db"): {"id": "record-3", "content": "203.0.113.1"},
+        },
+        failing_records={("zone-2", "api")},
+    )
+
+    main(
+        config_loader=lambda path: config,
+        source_resolver=lambda source: str(source.value),
+        client=client,
+        output=lines.append,
+    )
+
+    assert lines == ["www: updated", "api: failed (boom)", "db: updated"]
+    assert client.calls == [
+        ("get_record", "zone-1", "www"),
+        ("update_record", "zone-1", "record-1", "203.0.113.10", None, None),
+        ("get_record", "zone-2", "api"),
+        ("get_record", "zone-3", "db"),
+        ("update_record", "zone-3", "record-3", "203.0.113.12", None, None),
+    ]

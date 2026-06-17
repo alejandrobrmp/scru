@@ -17,6 +17,7 @@ from tests.integration.support import (
 CASES_DIR = Path(__file__).with_name("cases")
 UPDATE_CASE_FILE = CASES_DIR / "01-update-existing-record.yaml"
 MISSING_CASE_FILE = CASES_DIR / "02-missing-record.yaml"
+MULTI_RECORD_CASE_FILE = CASES_DIR / "05-multi-record.yaml"
 
 
 @contextmanager
@@ -77,3 +78,34 @@ def test_missing_record_fails(repo_root: Path, integration_env: dict[str, str], 
         sentinel_record = cloudflare_client.get_record(zone_id, str(integration_env["SCRU_INTEGRATION_SENTINEL_RECORD_NAME"]))
         assert sentinel_record is not None
         assert sentinel_record["content"] == integration_env["SCRU_INTEGRATION_INITIAL_IP"]
+
+
+def test_multiple_records_update_in_order(
+    repo_root: Path,
+    integration_env: dict[str, str],
+    integration_home: Path,
+    cloudflare_client: CloudflareClient,
+):
+    with integration_case_context(integration_env, integration_home, cloudflare_client, MULTI_RECORD_CASE_FILE) as (
+        _,
+        config_path,
+        zone_id,
+        _,
+    ):
+        result = run_scru(repo_root, integration_env, integration_home)
+
+        assert result.returncode == 0
+        assert result.stderr == ""
+        assert result.stdout.splitlines() == [
+            f"{integration_env['SCRU_INTEGRATION_RECORD_NAME_1']}: updated",
+            f"{integration_env['SCRU_INTEGRATION_RECORD_NAME_2']}: updated",
+        ]
+
+        assert config_path.exists()
+
+        record_1 = cloudflare_client.get_record(zone_id, str(integration_env["SCRU_INTEGRATION_RECORD_NAME_1"]))
+        record_2 = cloudflare_client.get_record(zone_id, str(integration_env["SCRU_INTEGRATION_RECORD_NAME_2"]))
+        assert record_1 is not None
+        assert record_2 is not None
+        assert record_1["content"] == integration_env["SCRU_INTEGRATION_TARGET_IP"]
+        assert record_2["content"] == integration_env["SCRU_INTEGRATION_TARGET_IP"]
