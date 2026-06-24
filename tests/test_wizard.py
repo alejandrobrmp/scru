@@ -382,7 +382,10 @@ class TestEditWizard:
             edit(config_path=config_path, input_func=responses)
 
         captured = capsys.readouterr()
-        assert "✔ Config saved to" not in captured.out
+        assert "✔ Config saved (no records) to" in captured.out
+
+        config = load_config(config_path)
+        assert len(config.records) == 0
 
     def test_edit_token_missing(self, monkeypatch, capsys):
         monkeypatch.delenv("CLOUDFLARE_API_TOKEN", raising=False)

@@ -321,9 +321,11 @@ def edit(
         cmd = input_func("> ").strip()
 
         if cmd == "q":
+            save_config(path, config)
             if config.records:
-                save_config(path, config)
-                print(f"✔ Config saved to {path}")
+                print(f"\u2714 Config saved to {path}")
+            else:
+                print(f"\u2714 Config saved (no records) to {path}")
             return
 
         if cmd == "a":
@@ -452,6 +454,7 @@ def main(
     new_handler: Callable[..., None] = new,
     edit_handler: Callable[..., None] = edit,
 ) -> None:
+    print("config:", config_path)
     if config_exists(config_path):
         edit_handler(config_path=config_path)
         return
