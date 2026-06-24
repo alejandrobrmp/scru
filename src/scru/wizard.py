@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 import os
 import shutil
 import sys
@@ -83,7 +84,8 @@ def _config_source_page(
     input_func: Callable[[str], str],
     *,
     current_source: SourceConfig | None = None,
-) -> SourceConfig:
+    allow_back: bool = False,
+) -> SourceConfig | None:
     default_choice = "2"
     if current_source and current_source.type == "fixed":
         default_choice = "1"
@@ -95,16 +97,32 @@ def _config_source_page(
     print("  1. fixed   — enter an IP manually")
     print("  2. public  — use my current public IP")
     print("  3. custom  — run a command")
+    if allow_back:
+        print("  b. back    — go to previous step")
 
-    choice = input_func(f"Select (1-3) [{default_choice}]: ").strip() or default_choice
+    choice_prompt = f"Select (1-3) [{default_choice}]: "
+    if allow_back:
+        choice_prompt = f"Select (1-3) or 'b' to go back [{default_choice}]: "
+    choice = input_func(choice_prompt).strip().lower() or default_choice
+
+    if allow_back and choice == "b":
+        return None
 
     if choice == "1":
         default_value = current_source.value if current_source and current_source.type == "fixed" else ""
-        prompt = f"Fixed IPv4: " if not default_value else f"Fixed IPv4 [{default_value}]: "
-        value = input_func(prompt).strip()
-        if not value and default_value:
-            value = default_value
-        return SourceConfig(type="fixed", value=value)
+        while True:
+            prompt = f"Fixed IPv4: " if not default_value else f"Fixed IPv4 [{default_value}]: "
+            value = input_func(prompt).strip()
+            if not value and default_value:
+                value = default_value
+            if allow_back and value.lower() == "b":
+                return None
+            try:
+                ipaddress.IPv4Address(value)
+                return SourceConfig(type="fixed", value=value)
+            except (ipaddress.AddressValueError, ValueError):
+                print(f"  Invalid IPv4 address: {value}")
+                default_value = ""
 
     if choice == "3":
         default_cmd = current_source.command if current_source and current_source.type == "custom" else ""
@@ -122,23 +140,33 @@ def _config_proxied_ttl_page(
     *,
     current_proxied: bool | None = None,
     current_ttl: int | None = None,
-) -> tuple[bool | None, int | None]:
+    allow_back: bool = False,
+) -> tuple[bool | None, int | None] | None:
+    back_hint = " or 'b' to go back" if allow_back else ""
+
     if current_proxied is not None:
         default_proxied = "y" if current_proxied else "n"
-        proxied_input = input_func(f"Proxied? (y/n) [{default_proxied}]: ").strip().lower() or default_proxied
+        proxied_input = input_func(f"Proxied? (y/n){back_hint} [{default_proxied}]: ").strip().lower() or default_proxied
     else:
-        proxied_input = input_func("Proxied? (y/n) [n]: ").strip().lower() or "n"
+        proxied_input = input_func(f"Proxied? (y/n){back_hint} [n]: ").strip().lower() or "n"
+
+    if allow_back and proxied_input == "b":
+        return None
 
     proxied: bool | None = True if proxied_input == "y" else False if proxied_input == "n" else None
 
     if current_ttl is not None:
-        ttl_input = input_func(f"TTL in seconds (blank=omit) [{current_ttl}]: ").strip()
+        ttl_input = input_func(f"TTL in seconds (blank=omit){back_hint} [{current_ttl}]: ").strip().lower()
         if not ttl_input:
             ttl = current_ttl
+        elif allow_back and ttl_input == "b":
+            return None
         else:
             ttl = int(ttl_input) if ttl_input else None
     else:
-        ttl_input = input_func("TTL in seconds (blank=omit): ").strip()
+        ttl_input = input_func(f"TTL in seconds (blank=omit){back_hint}: ").strip().lower()
+        if allow_back and ttl_input == "b":
+            return None
         ttl = int(ttl_input) if ttl_input else None
 
     if proxied and ttl is not None:
@@ -188,7 +216,9 @@ def new(
             zid = zone.get("id", "?")
             print(f"  {i}. {name}   ({zid})")
 
-        zone_input = input_func(f"Select zone (1-{len(zones)}) [1]: ").strip() or "1"
+        zone_input = input_func(f"Select zone (1-{len(zones)}) or 'b' to go back [1]: ").strip().lower() or "1"
+        if zone_input == "b":
+            continue
         try:
             idx = int(zone_input) - 1
             if idx < 0 or idx >= len(zones):
@@ -203,42 +233,68 @@ def new(
         zone_name = str(zone["name"])
         zone_cache[zone_id] = zone_name
 
-        _clear_screen()
-        _breadcrumb("NEW", zone_name=zone_name)
+        source: SourceConfig | None = None
+        proxied: bool | None = None
+        ttl: int | None = None
 
-        records_list = _fetch_records(zone_id)
-        print()
-        _section_header("Select record")
-        print()
-        if records_list:
-            for i, record in enumerate(records_list, 1):
-                print(f"  {i}. {record.get('name', '?')}")
-        else:
-            print("  (no A records found)")
+        while True:
+            _clear_screen()
+            _breadcrumb("NEW", zone_name=zone_name)
 
-        rec_input = input_func(
-            f"Select record (1-{len(records_list)}) or type a new name: " if records_list
-            else "Type a new name: "
-        ).strip()
-
-        try:
-            idx = int(rec_input) - 1
-            if 0 <= idx < len(records_list):
-                record_name = str(records_list[idx]["name"])
+            records_list = _fetch_records(zone_id)
+            print()
+            _section_header("Select record")
+            print()
+            if records_list:
+                for i, record in enumerate(records_list, 1):
+                    print(f"  {i}. {record.get('name', '?')}")
             else:
+                print("  (no A records found)")
+
+            if records_list:
+                rec_prompt = f"Select record (1-{len(records_list)}), type a new name, or 'b' to go back: "
+            else:
+                rec_prompt = "Type a new name or 'b' to go back: "
+
+            rec_input = input_func(rec_prompt).strip()
+
+            if rec_input.lower() == "b":
+                break
+
+            try:
+                idx = int(rec_input) - 1
+                if 0 <= idx < len(records_list):
+                    record_name = str(records_list[idx]["name"])
+                else:
+                    record_name = rec_input
+            except ValueError:
                 record_name = rec_input
-        except ValueError:
-            record_name = rec_input
 
-        _clear_screen()
-        _breadcrumb("NEW", zone_name=zone_name, record_name=record_name)
+            while True:
+                _clear_screen()
+                _breadcrumb("NEW", zone_name=zone_name, record_name=record_name)
 
-        source = _config_source_page(input_func)
+                source = _config_source_page(input_func, allow_back=True)
+                if source is None:
+                    break
 
-        _clear_screen()
-        _breadcrumb("NEW", zone_name=zone_name, record_name=record_name)
+                _clear_screen()
+                _breadcrumb("NEW", zone_name=zone_name, record_name=record_name)
 
-        proxied, ttl = _config_proxied_ttl_page(input_func)
+                proxied_ttl = _config_proxied_ttl_page(input_func, allow_back=True)
+                if proxied_ttl is None:
+                    continue
+
+                proxied, ttl = proxied_ttl
+                break
+
+            if source is None:
+                continue
+
+            break
+
+        if source is None:
+            continue
 
         _clear_screen()
         _breadcrumb("NEW", zone_name=zone_name, record_name=record_name)
@@ -329,73 +385,107 @@ def edit(
             return
 
         if cmd == "a":
-            _clear_screen()
-            _breadcrumb("EDIT")
+            source: SourceConfig | None = None
+            proxied: bool | None = None
+            ttl: int | None = None
 
-            zones = client.list_all_zones()
-            if not zones:
-                print("\nNo zones found in this account.")
-                input_func("Press Enter to continue...")
-                continue
-            for z in zones:
-                zone_cache[str(z["id"])] = str(z["name"])
+            while True:
+                _clear_screen()
+                _breadcrumb("EDIT")
 
-            print()
-            _section_header("Add record — Select zone")
-            print()
-            for i, zone in enumerate(zones, 1):
-                name = zone.get("name", "?")
-                zid = zone.get("id", "?")
-                print(f"  {i}. {name}   ({zid})")
+                zones = client.list_all_zones()
+                if not zones:
+                    print("\nNo zones found in this account.")
+                    input_func("Press Enter to continue...")
+                    break
+                for z in zones:
+                    zone_cache[str(z["id"])] = str(z["name"])
 
-            zone_input = input_func(f"Select zone (1-{len(zones)}) [1]: ").strip() or "1"
-            try:
-                idx = int(zone_input) - 1
-                if idx < 0 or idx >= len(zones):
+                print()
+                _section_header("Add record \u2014 Select zone")
+                print()
+                for i, zone in enumerate(zones, 1):
+                    name = zone.get("name", "?")
+                    zid = zone.get("id", "?")
+                    print(f"  {i}. {name}   ({zid})")
+
+                zone_input = input_func(f"Select zone (1-{len(zones)}) or 'b' to go back [1]: ").strip().lower() or "1"
+                if zone_input == "b":
+                    source = None
+                    break
+
+                try:
+                    idx = int(zone_input) - 1
+                    if idx < 0 or idx >= len(zones):
+                        continue
+                except ValueError:
                     continue
-            except ValueError:
+
+                zone = zones[idx]
+                zone_id = str(zone["id"])
+                zone_name = str(zone["name"])
+
+                while True:
+                    _clear_screen()
+                    _breadcrumb("EDIT", zone_name=zone_name)
+
+                    records_list = client.list_all_records(zone_id)
+                    print()
+                    _section_header("Add record \u2014 Select record")
+                    print()
+                    if records_list:
+                        for i, rec in enumerate(records_list, 1):
+                            print(f"  {i}. {rec.get('name', '?')}")
+                    else:
+                        print("  (no A records found)")
+
+                    if records_list:
+                        rec_prompt = f"Select record (1-{len(records_list)}), type a new name, or 'b' to go back: "
+                    else:
+                        rec_prompt = "Type a new name or 'b' to go back: "
+
+                    rec_input = input_func(rec_prompt).strip()
+                    if rec_input.lower() == "b":
+                        source = None
+                        break
+
+                    try:
+                        idx = int(rec_input) - 1
+                        if 0 <= idx < len(records_list):
+                            record_name = str(records_list[idx]["name"])
+                        else:
+                            record_name = rec_input
+                    except ValueError:
+                        record_name = rec_input
+
+                    while True:
+                        _clear_screen()
+                        _breadcrumb("EDIT", zone_name=zone_name, record_name=record_name)
+
+                        source = _config_source_page(input_func, allow_back=True)
+                        if source is None:
+                            break
+
+                        _clear_screen()
+                        _breadcrumb("EDIT", zone_name=zone_name, record_name=record_name)
+
+                        proxied_ttl = _config_proxied_ttl_page(input_func, allow_back=True)
+                        if proxied_ttl is None:
+                            continue
+
+                        proxied, ttl = proxied_ttl
+                        break
+
+                    if source is None:
+                        continue
+
+                    break
+
+                if source is not None:
+                    break
+
+            if source is None:
                 continue
-
-            zone = zones[idx]
-            zone_id = str(zone["id"])
-            zone_name = str(zone["name"])
-
-            _clear_screen()
-            _breadcrumb("EDIT", zone_name=zone_name)
-
-            records_list = client.list_all_records(zone_id)
-            print()
-            _section_header("Add record — Select record")
-            print()
-            if records_list:
-                for i, rec in enumerate(records_list, 1):
-                    print(f"  {i}. {rec.get('name', '?')}")
-            else:
-                print("  (no A records found)")
-
-            rec_input = input_func(
-                f"Select record (1-{len(records_list)}) or type a new name: " if records_list
-                else "Type a new name: "
-            ).strip()
-
-            try:
-                idx = int(rec_input) - 1
-                if 0 <= idx < len(records_list):
-                    record_name = str(records_list[idx]["name"])
-                else:
-                    record_name = rec_input
-            except ValueError:
-                record_name = rec_input
-
-            _clear_screen()
-            _breadcrumb("EDIT", zone_name=zone_name, record_name=record_name)
-
-            source = _config_source_page(input_func)
-
-            _clear_screen()
-            _breadcrumb("EDIT", zone_name=zone_name, record_name=record_name)
-
-            proxied, ttl = _config_proxied_ttl_page(input_func)
 
             config.records.append(RecordConfig(
                 zone_id=zone_id,
@@ -422,19 +512,35 @@ def edit(
                     record = config.records[n]
                     zone_name = _get_zone_name(record.zone_id)
 
-                    _clear_screen()
-                    _breadcrumb("EDIT", zone_name=zone_name, record_name=record.name)
+                    source: SourceConfig | None
+                    proxied: bool | None
+                    ttl: int | None
 
-                    source = _config_source_page(input_func, current_source=record.source)
+                    while True:
+                        _clear_screen()
+                        _breadcrumb("EDIT", zone_name=zone_name, record_name=record.name)
 
-                    _clear_screen()
-                    _breadcrumb("EDIT", zone_name=zone_name, record_name=record.name)
+                        source = _config_source_page(input_func, current_source=record.source, allow_back=True)
+                        if source is None:
+                            break
 
-                    proxied, ttl = _config_proxied_ttl_page(
-                        input_func,
-                        current_proxied=record.proxied,
-                        current_ttl=record.ttl,
-                    )
+                        _clear_screen()
+                        _breadcrumb("EDIT", zone_name=zone_name, record_name=record.name)
+
+                        proxied_ttl = _config_proxied_ttl_page(
+                            input_func,
+                            current_proxied=record.proxied,
+                            current_ttl=record.ttl,
+                            allow_back=True,
+                        )
+                        if proxied_ttl is None:
+                            continue
+
+                        proxied, ttl = proxied_ttl
+                        break
+
+                    if source is None:
+                        continue
 
                     config.records[n] = RecordConfig(
                         zone_id=record.zone_id,

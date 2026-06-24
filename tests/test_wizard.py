@@ -194,6 +194,129 @@ class TestNewWizard:
         assert "No zones found" in captured.out
         assert not config_path.exists()
 
+    def test_new_back_from_record_to_zone(
+        self, tmp_path, monkeypatch, mock_zones, mock_records_example, capsys
+    ):
+        monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "test-token")
+        config_path = tmp_path / "config.yaml"
+
+        client_mock = _make_client_mock(
+            mock_zones, {"zone-1-id": mock_records_example, "zone-2-id": []}
+        )
+
+        responses = _input_sequence([
+            "1",  # zone: example.com
+            "b",  # back from record selection
+            "2",  # zone: test.org
+            "custom-name",  # type new record name
+            "2",  # source: public
+            "n",  # proxied
+            "",  # ttl
+            "n",  # add another
+        ])
+
+        with patch("scru.cloudflare.CloudflareClient", return_value=client_mock):
+            new(config_path=config_path, input_func=responses)
+
+        config = load_config(config_path)
+        assert len(config.records) == 1
+        r = config.records[0]
+        assert r.zone_id == "zone-2-id"
+        assert r.name == "custom-name"
+
+    def test_new_back_from_source_to_record(
+        self, tmp_path, monkeypatch, mock_zones, mock_records_example, capsys
+    ):
+        monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "test-token")
+        config_path = tmp_path / "config.yaml"
+
+        client_mock = _make_client_mock(
+            mock_zones, {"zone-1-id": mock_records_example}
+        )
+
+        responses = _input_sequence([
+            "1",  # zone: example.com
+            "1",  # record: www.example.com
+            "b",  # back from source page to record
+            "2",  # record: api.example.com
+            "2",  # source: public
+            "n",  # proxied
+            "",  # ttl
+            "n",  # add another
+        ])
+
+        with patch("scru.cloudflare.CloudflareClient", return_value=client_mock):
+            new(config_path=config_path, input_func=responses)
+
+        config = load_config(config_path)
+        assert len(config.records) == 1
+        r = config.records[0]
+        assert r.name == "api.example.com"
+        assert r.source.type == "public"
+
+    def test_new_back_from_proxied_to_source(
+        self, tmp_path, monkeypatch, mock_zones, mock_records_example, capsys
+    ):
+        monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "test-token")
+        config_path = tmp_path / "config.yaml"
+
+        client_mock = _make_client_mock(
+            mock_zones, {"zone-1-id": mock_records_example}
+        )
+
+        responses = _input_sequence([
+            "1",  # zone: example.com
+            "1",  # record: www.example.com
+            "1",  # source: fixed
+            "10.0.0.1",  # IP
+            "b",  # back from proxied to source
+            "2",  # source: public (changed)
+            "n",  # proxied
+            "",  # ttl
+            "n",  # add another
+        ])
+
+        with patch("scru.cloudflare.CloudflareClient", return_value=client_mock):
+            new(config_path=config_path, input_func=responses)
+
+        config = load_config(config_path)
+        assert len(config.records) == 1
+        r = config.records[0]
+        assert r.source.type == "public"
+
+    def test_new_fixed_ipv4_rejects_invalid(
+        self, tmp_path, monkeypatch, mock_zones, mock_records_example, capsys
+    ):
+        monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "test-token")
+        config_path = tmp_path / "config.yaml"
+
+        client_mock = _make_client_mock(
+            mock_zones, {"zone-1-id": mock_records_example}
+        )
+
+        responses = _input_sequence([
+            "1",  # zone
+            "1",  # record
+            "1",  # source: fixed
+            "not-an-ip",  # invalid
+            "10.0.0.55",  # valid
+            "n",  # proxied
+            "",  # ttl
+            "n",  # add another
+        ])
+
+        with patch("scru.cloudflare.CloudflareClient", return_value=client_mock):
+            new(config_path=config_path, input_func=responses)
+
+        config = load_config(config_path)
+        assert len(config.records) == 1
+        r = config.records[0]
+        assert r.source.type == "fixed"
+        assert r.source.value == "10.0.0.55"
+
+        captured = capsys.readouterr()
+        assert "Invalid IPv4" in captured.out
+
 
 class TestEditWizard:
     def _write_config(self, path, records):
@@ -392,3 +515,92 @@ class TestEditWizard:
         edit()
         captured = capsys.readouterr()
         assert "CLOUDFLARE_API_TOKEN is not set" in captured.out
+
+    def test_edit_back_from_add_zone_to_menu(
+        self, tmp_path, monkeypatch, mock_zones, mock_records_example, capsys
+    ):
+        monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "test-token")
+        config_path = tmp_path / "config.yaml"
+        self._write_config(config_path, [])
+
+        client_mock = _make_client_mock(
+            mock_zones, {"zone-1-id": mock_records_example}
+        )
+
+        responses = _input_sequence([
+            "a",  # add
+            "b",  # back from zone selection to menu
+            "q",  # save and quit
+        ])
+
+        with patch("scru.cloudflare.CloudflareClient", return_value=client_mock):
+            edit(config_path=config_path, input_func=responses)
+
+        config = load_config(config_path)
+        assert len(config.records) == 0
+
+    def test_edit_back_from_update_source_to_menu(
+        self, tmp_path, monkeypatch, mock_zones, mock_records_example, capsys
+    ):
+        monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "test-token")
+        config_path = tmp_path / "config.yaml"
+
+        existing = RecordConfig(
+            zone_id="zone-1-id",
+            name="www.example.com",
+            source=SourceConfig(type="public"),
+            proxied=False,
+            ttl=None,
+        )
+        self._write_config(config_path, [existing])
+
+        client_mock = _make_client_mock(
+            mock_zones, {"zone-1-id": mock_records_example}
+        )
+
+        responses = _input_sequence([
+            "u 1",  # update record 1
+            "b",  # back from source page to menu
+            "q",  # save and quit
+        ])
+
+        with patch("scru.cloudflare.CloudflareClient", return_value=client_mock):
+            edit(config_path=config_path, input_func=responses)
+
+        config = load_config(config_path)
+        assert len(config.records) == 1
+        r = config.records[0]
+        assert r.source.type == "public"
+        assert r.name == "www.example.com"
+
+    def test_edit_back_from_record_to_zone(
+        self, tmp_path, monkeypatch, mock_zones, mock_records_example, capsys
+    ):
+        monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "test-token")
+        config_path = tmp_path / "config.yaml"
+        self._write_config(config_path, [])
+
+        client_mock = _make_client_mock(
+            mock_zones, {"zone-1-id": mock_records_example, "zone-2-id": []}
+        )
+
+        responses = _input_sequence([
+            "a",  # add
+            "1",  # zone: example.com
+            "b",  # back from record to zone
+            "2",  # zone: test.org
+            "custom-name",  # record
+            "2",  # source: public
+            "n",  # proxied
+            "",  # ttl
+            "q",  # save and quit
+        ])
+
+        with patch("scru.cloudflare.CloudflareClient", return_value=client_mock):
+            edit(config_path=config_path, input_func=responses)
+
+        config = load_config(config_path)
+        assert len(config.records) == 1
+        r = config.records[0]
+        assert r.zone_id == "zone-2-id"
+        assert r.name == "custom-name"
