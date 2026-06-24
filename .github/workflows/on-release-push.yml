@@ -5,6 +5,9 @@ on:
     branches:
       - release
 
+permissions:
+  contents: write
+
 jobs:
   build:
     uses: ./.github/workflows/reusable-build.yml
@@ -17,3 +20,33 @@ jobs:
     needs: unit-tests
     uses: ./.github/workflows/reusable-integration-tests.yml
     secrets: inherit
+
+  pre-release:
+    needs: [build, unit-tests, integration-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Force-update pre-release tag
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag -f pre-release
+          git push -f origin pre-release
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Create/update draft pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Pre-release build"
+          tag_name: pre-release
+          draft: true
+          prerelease: true
+          files: dist/**
+          body: |
+            Build from ${{ github.ref_name }} (${{ github.sha }})
