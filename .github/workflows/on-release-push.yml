@@ -1,12 +1,9 @@
-name: On Tag Push
+name: On Release Push
 
 on:
   push:
-    tags:
-      - "*.*.*"
-
-permissions:
-  contents: write
+    branches:
+      - release
 
 jobs:
   build:
@@ -16,8 +13,7 @@ jobs:
     needs: build
     uses: ./.github/workflows/reusable-unit-tests.yml
 
-  release:
+  integration-tests:
     needs: unit-tests
-    uses: ./.github/workflows/reusable-release.yml
-    with:
-      tag-name: ${{ github.ref_name }}
+    uses: ./.github/workflows/reusable-integration-tests.yml
+    secrets: inherit
