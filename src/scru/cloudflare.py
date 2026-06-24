@@ -49,6 +49,15 @@ class CloudflareClient:
             return [zone for zone in result if isinstance(zone, Mapping)]
         raise CloudflareClientError("cloudflare response result was not a list")
 
+    def list_all_zones(self) -> list[Mapping[str, Any]]:
+        query: dict[str, str] = {"per_page": "50"}
+        result = self._request_json("GET", f"/zones?{urlencode(query)}")
+        if result is None:
+            return []
+        if isinstance(result, list):
+            return [zone for zone in result if isinstance(zone, Mapping)]
+        raise CloudflareClientError("cloudflare response result was not a list")
+
     def list_records(self, zone_id: str, *, name: str | None = None, record_type: str | None = "A") -> list[Mapping[str, Any]]:
         query: dict[str, str] = {"per_page": "1"}
         if name is not None:
@@ -56,6 +65,15 @@ class CloudflareClient:
         if record_type is not None:
             query["type"] = record_type
 
+        result = self._request_json("GET", f"/zones/{zone_id}/dns_records?{urlencode(query)}")
+        if result is None:
+            return []
+        if isinstance(result, list):
+            return [record for record in result if isinstance(record, Mapping)]
+        raise CloudflareClientError("cloudflare response result was not a list")
+
+    def list_all_records(self, zone_id: str) -> list[Mapping[str, Any]]:
+        query: dict[str, str] = {"per_page": "50", "type": "A"}
         result = self._request_json("GET", f"/zones/{zone_id}/dns_records?{urlencode(query)}")
         if result is None:
             return []

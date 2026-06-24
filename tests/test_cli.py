@@ -56,8 +56,8 @@ def test_wizard_main_routes_to_edit_when_config_exists(tmp_path):
 
     wizard_main(
         config_path=config_path,
-        new_handler=lambda: calls.append("new"),
-        edit_handler=lambda: calls.append("edit"),
+        new_handler=lambda **kwargs: calls.append("new"),
+        edit_handler=lambda **kwargs: calls.append("edit"),
     )
 
     assert calls == ["edit"]
@@ -69,8 +69,8 @@ def test_wizard_main_routes_to_new_when_config_missing(tmp_path):
 
     wizard_main(
         config_path=config_path,
-        new_handler=lambda: calls.append("new"),
-        edit_handler=lambda: calls.append("edit"),
+        new_handler=lambda **kwargs: calls.append("new"),
+        edit_handler=lambda **kwargs: calls.append("edit"),
     )
 
     assert calls == ["new"]
