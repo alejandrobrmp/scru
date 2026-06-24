@@ -1,0 +1,13 @@
+name: On PR Validation
+
+on:
+  pull_request:
+
+jobs:
+  unit-tests:
+    uses: ./.github/workflows/reusable-unit-tests.yml
+
+  integration-tests:
+    needs: unit-tests
+    uses: ./.github/workflows/reusable-integration-tests.yml
+    secrets: inherit
