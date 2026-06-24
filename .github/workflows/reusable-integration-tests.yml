@@ -1,8 +1,18 @@
-name: Integration Tests
+name: Reusable Integration Tests
 
 on:
   workflow_call:
+    inputs:
+      python-version:
+        type: string
+        default: "3.11"
+        description: Python version to use
   workflow_dispatch:
+    inputs:
+      python-version:
+        type: string
+        default: "3.11"
+        description: Python version to use
 
 jobs:
   integration-tests:
@@ -25,7 +35,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ inputs.python-version }}
 
       - name: Install project and test dependencies
         run: python -m pip install ".[test]"
