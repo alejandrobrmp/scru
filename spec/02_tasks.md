@@ -71,7 +71,8 @@ Workflow:
 - Add, update, and remove records.
 - Support multiple zones and per-record source selection.
 
-11. Tests and packaging
-- Add unit tests for config, sources, skip logic, and update behavior.
-- Cover per-record failure isolation.
+11. Packaging, documentation and release
 - Add Linux packaging/build workflow.
+- Update documentation to reflect work done
+- Update readme to match a real serious project with clear steps on how the product works
+- Plan the release process
