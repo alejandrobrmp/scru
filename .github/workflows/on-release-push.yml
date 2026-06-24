@@ -9,11 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    uses: ./.github/workflows/reusable-build.yml
-
   unit-tests:
-    needs: build
     uses: ./.github/workflows/reusable-unit-tests.yml
 
   integration-tests:
@@ -21,8 +17,12 @@ jobs:
     uses: ./.github/workflows/reusable-integration-tests.yml
     secrets: inherit
 
+  build:
+    needs: [unit-tests, integration-tests]
+    uses: ./.github/workflows/reusable-build.yml
+
   pre-release:
-    needs: [build, unit-tests, integration-tests]
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

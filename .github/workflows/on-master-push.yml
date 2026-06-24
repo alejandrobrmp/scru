@@ -41,7 +41,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create and push tag
+      - name: Clean up pre-release tag and draft release
+        run: |
+          gh release delete pre-release --yes --cleanup-tag 2>/dev/null || true
+          git push origin --delete pre-release 2>/dev/null || true
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Create and push version tag
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
