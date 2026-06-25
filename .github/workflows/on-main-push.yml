@@ -3,7 +3,7 @@ name: On Master Push
 on:
   push:
     branches:
-      - master
+      - main
 
 permissions:
   contents: write
