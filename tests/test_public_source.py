@@ -18,7 +18,7 @@ class FakeResponse:
 
 
 def test_resolve_public_source_ipv4_returns_ipv4_text(monkeypatch):
-    def opener(url):
+    def opener(url, **kwargs):
         assert url == "https://api.ipify.org"
         return FakeResponse(b"198.51.100.7\n")
 
@@ -28,7 +28,7 @@ def test_resolve_public_source_ipv4_returns_ipv4_text(monkeypatch):
 
 
 def test_resolve_public_source_ipv4_rejects_empty_response(monkeypatch):
-    def opener(url):
+    def opener(url, **kwargs):
         return FakeResponse(b"   \n")
 
     monkeypatch.setattr("scru.update.urlopen", opener)
@@ -42,7 +42,7 @@ def test_resolve_public_source_ipv4_rejects_empty_response(monkeypatch):
 
 
 def test_resolve_public_source_ipv4_rejects_non_ipv4_response(monkeypatch):
-    def opener(url):
+    def opener(url, **kwargs):
         return FakeResponse(b"2001:db8::1")
 
     monkeypatch.setattr("scru.update.urlopen", opener)

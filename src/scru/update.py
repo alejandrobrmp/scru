@@ -53,7 +53,7 @@ def resolve_fixed_ipv4(source: SourceConfig) -> str:
 def resolve_public_source_ipv4() -> str:
     target_url = os.environ.get(PUBLIC_IP_URL_ENV_VAR, DEFAULT_PUBLIC_IP_URL)
 
-    with urlopen(target_url) as response:
+    with urlopen(target_url, timeout=10) as response:
         text = response.read().decode("utf-8").strip()
 
     if not text:

@@ -22,7 +22,7 @@ def _setup_encoding() -> None:
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
-        pass
+        print("Warning: could not set UTF-8 encoding, display may be garbled", file=sys.stderr)
 
 
 def _clear_screen() -> None:
@@ -345,7 +345,7 @@ def edit(
                 for z in zones:
                     zone_cache[str(z["id"])] = str(z["name"])
             except Exception:
-                pass
+                zone_cache[zid] = "(API error)"
         return zone_cache.get(zid, zid)
 
     for r in config.records:
