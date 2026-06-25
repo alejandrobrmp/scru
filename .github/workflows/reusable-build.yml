@@ -40,6 +40,15 @@ jobs:
       - name: Build wheel and sdist
         run: python -m build
 
+      - name: Install PyInstaller
+        run: python -m pip install pyinstaller
+
+      - name: Install project
+        run: pip install .
+
+      - name: Build standalone binary (PyInstaller)
+        run: pyinstaller --onefile --name scru --copy-metadata scru src/scru/cli.py
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
