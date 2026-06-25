@@ -34,10 +34,16 @@ jobs:
           git tag -f pre-release
           git push -f origin pre-release
 
-      - name: Download artifacts
+      - name: Download dist artifacts
         uses: actions/download-artifact@v4
         with:
           name: dist
+          path: dist/
+
+      - name: Download ARM64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-arm64
           path: dist/
 
       - name: Create/update draft pre-release
