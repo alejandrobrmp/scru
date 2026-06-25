@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1 — 2026-06-25
+
+### Added
+
+- **ARM64 Linux binary** (`scru-linux-arm64`) built alongside the existing amd64 binary (`scru-linux-amd64`) in release artifacts.
+
 ## 0.1.0 — 2026-06-25
 
 ### Added
