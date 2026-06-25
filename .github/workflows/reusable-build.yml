@@ -49,6 +49,9 @@ jobs:
       - name: Build standalone binary (PyInstaller)
         run: pyinstaller --onefile --name scru --copy-metadata scru bin/scru_entry.py
 
+      - name: Rename binary
+        run: mv dist/scru dist/scru-linux-amd64
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
