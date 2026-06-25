@@ -146,8 +146,8 @@ The config wizard should:
 
 ## Git And Branching
 
-- `master` is the protected production branch
-- No direct pushes or commits to `master`
+- `main` is the protected production branch
+- No direct pushes or commits to `main`
 - `develop` is the integration branch
 - `develop` is not protected, but it should not be used for routine direct pushes or commits
 - Every task starts from a branch created off `develop`
@@ -177,9 +177,9 @@ The config wizard should:
 
 ### Release Flow
 
-- Releases are cut from `master`
+- Releases are cut from `main`
 - Release tags use the format `X.X.X`
-- A release is created from a tag on `master`
+- A release is created from a tag on `main`
 - Release builds should be tied to that tag
 
 ## Security

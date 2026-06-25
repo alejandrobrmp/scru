@@ -11,5 +11,5 @@
 - **Interactive config wizard** (`scru config`) with new/edit modes, zone/record browsing, and back navigation.
 - **CLI** with `scru` (run updates) and `scru config` (wizard) commands.
 - **YAML config** at `~/.config/scru/config.yaml`.
-- **CI/CD**: PR validation (unit + integration tests), release branch builds, master-merge releases.
+- **CI/CD**: PR validation (unit + integration tests), release branch builds, main-merge releases.
 - **README** with full user documentation.

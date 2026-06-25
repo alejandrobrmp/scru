@@ -16,7 +16,7 @@ Add a GitHub Actions release workflow triggered by `X.X.X` tags that builds whee
 
 - `tasks/11a-documentation.md`
 - `spec/01_spec.md`
-- `master` must include all completed tasks merged from `develop`.
+- `main` must include all completed tasks merged from `develop`.
 
 ## Acceptance Criteria
 
@@ -53,14 +53,14 @@ Add a GitHub Actions release workflow triggered by `X.X.X` tags that builds whee
 - The `files` glob for `action-gh-release` should match `dist/**` (or `dist/*.whl` and `dist/*.tar.gz` explicitly).
 - The workflow does **not** need a `workflow_dispatch` trigger — it runs only on tags.
 - The checkout step should check out the tag, not a specific branch. `actions/checkout@v4` handles this automatically for tag-triggered workflows.
-- The release is tied to the tagged commit on `master` per the spec's release flow.
+- The release is tied to the tagged commit on `main` per the spec's release flow.
 - Version bumps in `pyproject.toml` are manual — the developer edits the version field before tagging.
 
 ## Verification
 
-1. Push a test tag from `master` (e.g., `0.2.0-rc1`):
+1. Push a test tag from `main` (e.g., `0.2.0-rc1`):
    ```
-   git checkout master
+   git checkout main
    git tag 0.2.0-rc1
    git push origin 0.2.0-rc1
    ```
@@ -76,5 +76,5 @@ Add a GitHub Actions release workflow triggered by `X.X.X` tags that builds whee
 
 ## Follow-ups
 
-- First real release: bump version in `pyproject.toml`, tag on `master`, push.
+- First real release: bump version in `pyproject.toml`, tag on `main`, push.
 - Consider auto-generating release notes from merged PRs in the future.
