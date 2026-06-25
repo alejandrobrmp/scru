@@ -47,7 +47,7 @@ jobs:
         run: pip install .
 
       - name: Build standalone binary (PyInstaller)
-        run: pyinstaller --onefile --name scru --copy-metadata scru src/scru/cli.py
+        run: pyinstaller --onefile --name scru --copy-metadata scru bin/scru_entry.py
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
