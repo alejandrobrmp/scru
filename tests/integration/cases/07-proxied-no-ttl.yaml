@@ -1,0 +1,16 @@
+name: proxied-no-ttl
+setup:
+  create_records:
+    - zone_id: ${SCRU_INTEGRATION_ZONE_NAME}
+      name: ${SCRU_INTEGRATION_RECORD_NAME_3}
+      content: ${SCRU_INTEGRATION_INITIAL_IP}
+      proxied: true
+      ttl: 1
+config_yaml: |
+  records:
+    - zone_id: ${SCRU_INTEGRATION_ZONE_NAME}
+      name: ${SCRU_INTEGRATION_RECORD_NAME_3}
+      source:
+        type: fixed
+        value: ${SCRU_INTEGRATION_TARGET_IP}
+      proxied: true

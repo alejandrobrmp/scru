@@ -1,0 +1,15 @@
+name: public-source-updates-record
+setup:
+  create_records:
+    - zone_id: ${SCRU_INTEGRATION_ZONE_NAME}
+      name: ${SCRU_INTEGRATION_RECORD_NAME}
+      content: ${SCRU_INTEGRATION_INITIAL_IP}
+      proxied: false
+      ttl: 1
+config_yaml: |
+  records:
+    - zone_id: ${SCRU_INTEGRATION_ZONE_NAME}
+      name: ${SCRU_INTEGRATION_RECORD_NAME}
+      source:
+        type: public
+      proxied: false

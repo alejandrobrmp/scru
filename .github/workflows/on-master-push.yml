@@ -1,0 +1,69 @@
+name: On Master Push
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+  get-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - id: version
+        name: Read version from pyproject.toml
+        run: |
+          VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+  build:
+    needs: get-version
+    uses: ./.github/workflows/reusable-build.yml
+
+  unit-tests:
+    needs: build
+    uses: ./.github/workflows/reusable-unit-tests.yml
+
+  tag-and-release:
+    needs: [get-version, unit-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clean up pre-release tag and draft release
+        run: |
+          gh release delete pre-release --yes --cleanup-tag 2>/dev/null || true
+          git push origin --delete pre-release 2>/dev/null || true
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Create and push version tag
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag ${{ needs.get-version.outputs.version }}
+          git push origin ${{ needs.get-version.outputs.version }}
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ needs.get-version.outputs.version }}
+          tag_name: ${{ needs.get-version.outputs.version }}
+          files: dist/**

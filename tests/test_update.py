@@ -1,0 +1,523 @@
+from scru.config import Config, RecordConfig, SourceConfig
+from scru.update import main, process_record, resolve_source_ipv4
+
+
+class RecordingClient:
+    def __init__(self, current_record=None):
+        self.current_record = current_record
+        self.calls = []
+
+    def get_record(self, zone_id, name):
+        self.calls.append(("get_record", zone_id, name))
+        return self.current_record
+
+    def update_record(self, zone_id, record_id, content, *, proxied=None, ttl=None):
+        self.calls.append(("update_record", zone_id, record_id, content, proxied, ttl))
+
+
+class SequencedClient:
+    def __init__(self, current_records=None, failing_records=None):
+        self.current_records = current_records or {}
+        self.failing_records = failing_records or set()
+        self.calls = []
+
+    def get_record(self, zone_id, name):
+        self.calls.append(("get_record", zone_id, name))
+        if (zone_id, name) in self.failing_records:
+            raise RuntimeError("boom")
+        return self.current_records.get((zone_id, name))
+
+    def update_record(self, zone_id, record_id, content, *, proxied=None, ttl=None):
+        self.calls.append(("update_record", zone_id, record_id, content, proxied, ttl))
+
+
+def test_process_record_skips_unchanged_record():
+    record = RecordConfig(
+        zone_id="zone-1",
+        name="www",
+        source=SourceConfig(type="fixed", value="203.0.113.10"),
+    )
+    client = RecordingClient(current_record={"id": "record-1", "content": "203.0.113.10"})
+    order = []
+
+    result = process_record(
+        record,
+        source_resolver=lambda source: order.append(("source", source.type)) or "203.0.113.10",
+        client=client,
+    )
+
+    assert result == "www: skipped (unchanged)"
+    assert order == [("source", "fixed")]
+    assert client.calls == [("get_record", "zone-1", "www")]
+
+
+def test_process_record_updates_changed_record_after_resolving_source():
+    record = RecordConfig(
+        zone_id="zone-1",
+        name="www",
+        source=SourceConfig(type="fixed", value="203.0.113.10"),
+        proxied=True,
+        ttl=120,
+    )
+    client = RecordingClient(current_record={"id": "record-1", "content": "203.0.113.1"})
+    order = []
+    warnings = []
+
+    result = process_record(
+        record,
+        source_resolver=lambda source: order.append(("source", source.type)) or "203.0.113.10",
+        client=client,
+        output=warnings.append,
+    )
+
+    assert result == "www: updated"
+    assert order == [("source", "fixed")]
+    assert warnings == ["www: warning (ttl ignored for proxied record)"]
+    assert client.calls == [
+        ("get_record", "zone-1", "www"),
+        ("update_record", "zone-1", "record-1", "203.0.113.10", True, None),
+    ]
+
+
+def test_process_record_skips_when_content_proxied_and_ttl_all_match():
+    record = RecordConfig(
+        zone_id="zone-1",
+        name="www",
+        source=SourceConfig(type="fixed", value="203.0.113.10"),
+        proxied=False,
+        ttl=120,
+    )
+    client = RecordingClient(
+        current_record={"id": "record-1", "content": "203.0.113.10", "proxied": False, "ttl": 120}
+    )
+
+    result = process_record(
+        record,
+        source_resolver=lambda source: "203.0.113.10",
+        client=client,
+    )
+
+    assert result == "www: skipped (unchanged)"
+    assert client.calls == [("get_record", "zone-1", "www")]
+
+
+def test_process_record_updates_when_only_proxied_differs():
+    record = RecordConfig(
+        zone_id="zone-1",
+        name="www",
+        source=SourceConfig(type="fixed", value="203.0.113.10"),
+        proxied=True,
+    )
+    client = RecordingClient(
+        current_record={"id": "record-1", "content": "203.0.113.10", "proxied": False, "ttl": 120}
+    )
+    warnings = []
+
+    result = process_record(
+        record,
+        source_resolver=lambda source: "203.0.113.10",
+        client=client,
+        output=warnings.append,
+    )
+
+    assert result == "www: updated"
+    assert warnings == []
+    assert client.calls == [
+        ("get_record", "zone-1", "www"),
+        ("update_record", "zone-1", "record-1", "203.0.113.10", True, None),
+    ]
+
+
+def test_process_record_updates_when_only_ttl_differs_for_non_proxied_record():
+    record = RecordConfig(
+        zone_id="zone-1",
+        name="www",
+        source=SourceConfig(type="fixed", value="203.0.113.10"),
+        proxied=False,
+        ttl=300,
+    )
+    client = RecordingClient(
+        current_record={"id": "record-1", "content": "203.0.113.10", "proxied": False, "ttl": 120}
+    )
+
+    result = process_record(
+        record,
+        source_resolver=lambda source: "203.0.113.10",
+        client=client,
+    )
+
+    assert result == "www: updated"
+    assert client.calls == [
+        ("get_record", "zone-1", "www"),
+        ("update_record", "zone-1", "record-1", "203.0.113.10", False, 300),
+    ]
+
+
+def test_process_record_skips_proxied_record_with_auto_ttl_and_no_config_ttl():
+    record = RecordConfig(
+        zone_id="zone-1",
+        name="www",
+        source=SourceConfig(type="fixed", value="203.0.113.10"),
+        proxied=True,
+    )
+    client = RecordingClient(
+        current_record={"id": "record-1", "content": "203.0.113.10", "proxied": True, "ttl": 1}
+    )
+
+    result = process_record(
+        record,
+        source_resolver=lambda source: "203.0.113.10",
+        client=client,
+    )
+
+    assert result == "www: skipped (unchanged)"
+    assert client.calls == [("get_record", "zone-1", "www")]
+
+
+def test_process_record_skips_proxied_record_with_config_ttl_and_provider_auto_ttl():
+    record = RecordConfig(
+        zone_id="zone-1",
+        name="www",
+        source=SourceConfig(type="fixed", value="203.0.113.10"),
+        proxied=True,
+        ttl=120,
+    )
+    client = RecordingClient(
+        current_record={"id": "record-1", "content": "203.0.113.10", "proxied": True, "ttl": 1}
+    )
+    warnings = []
+
+    result = process_record(
+        record,
+        source_resolver=lambda source: "203.0.113.10",
+        client=client,
+        output=warnings.append,
+    )
+
+    assert result == "www: skipped (unchanged)"
+    assert warnings == []
+    assert client.calls == [("get_record", "zone-1", "www")]
+
+
+def test_process_record_emits_warning_and_omits_ttl_for_proxied_record_with_config_ttl():
+    record = RecordConfig(
+        zone_id="zone-1",
+        name="www",
+        source=SourceConfig(type="fixed", value="203.0.113.10"),
+        proxied=True,
+        ttl=120,
+    )
+    client = RecordingClient(
+        current_record={"id": "record-1", "content": "203.0.113.1", "proxied": True, "ttl": 1}
+    )
+    warnings = []
+
+    result = process_record(
+        record,
+        source_resolver=lambda source: "203.0.113.10",
+        client=client,
+        output=warnings.append,
+    )
+
+    assert result == "www: updated"
+    assert warnings == ["www: warning (ttl ignored for proxied record)"]
+    assert client.calls == [
+        ("get_record", "zone-1", "www"),
+        ("update_record", "zone-1", "record-1", "203.0.113.10", True, None),
+    ]
+
+
+def test_process_record_does_not_warn_for_proxied_record_without_config_ttl():
+    record = RecordConfig(
+        zone_id="zone-1",
+        name="www",
+        source=SourceConfig(type="fixed", value="203.0.113.10"),
+        proxied=True,
+    )
+    client = RecordingClient(
+        current_record={"id": "record-1", "content": "203.0.113.1", "proxied": True, "ttl": 1}
+    )
+    warnings = []
+
+    result = process_record(
+        record,
+        source_resolver=lambda source: "203.0.113.10",
+        client=client,
+        output=warnings.append,
+    )
+
+    assert result == "www: updated"
+    assert warnings == []
+    assert client.calls == [
+        ("get_record", "zone-1", "www"),
+        ("update_record", "zone-1", "record-1", "203.0.113.10", True, None),
+    ]
+
+
+def test_process_record_sends_configured_ttl_for_non_proxied_record():
+    record = RecordConfig(
+        zone_id="zone-1",
+        name="www",
+        source=SourceConfig(type="fixed", value="203.0.113.10"),
+        proxied=False,
+        ttl=300,
+    )
+    client = RecordingClient(
+        current_record={"id": "record-1", "content": "203.0.113.1", "proxied": False, "ttl": 120}
+    )
+
+    result = process_record(
+        record,
+        source_resolver=lambda source: "203.0.113.10",
+        client=client,
+    )
+
+    assert result == "www: updated"
+    assert client.calls == [
+        ("get_record", "zone-1", "www"),
+        ("update_record", "zone-1", "record-1", "203.0.113.10", False, 300),
+    ]
+
+
+def test_process_record_failure_returns_single_clear_result():
+    record = RecordConfig(
+        zone_id="zone-1",
+        name="www",
+        source=SourceConfig(type="fixed", value="203.0.113.10"),
+    )
+
+    class BrokenClient:
+        def get_record(self, zone_id, name):
+            raise RuntimeError("boom")
+
+        def update_record(self, zone_id, record_id, content, *, proxied=None, ttl=None):
+            raise AssertionError("should not update")
+
+    result = process_record(record, source_resolver=lambda source: "203.0.113.10", client=BrokenClient())
+
+    assert result == "www: failed (boom)"
+
+
+def test_process_record_rejects_invalid_fixed_source_before_cloudflare_calls():
+    record = RecordConfig(
+        zone_id="zone-1",
+        name="www",
+        source=SourceConfig(type="fixed", value="not-an-ip"),
+    )
+
+    class RecordingClient:
+        def __init__(self):
+            self.calls = []
+
+        def get_record(self, zone_id, name):
+            self.calls.append(("get_record", zone_id, name))
+            raise AssertionError("should not reach Cloudflare")
+
+        def update_record(self, zone_id, record_id, content, *, proxied=None, ttl=None):
+            self.calls.append(("update_record", zone_id, record_id, content, proxied, ttl))
+            raise AssertionError("should not reach Cloudflare")
+
+    client = RecordingClient()
+
+    result = process_record(record, source_resolver=resolve_source_ipv4, client=client)
+
+    assert result == "www: failed ('not-an-ip' does not appear to be an IPv4 or IPv6 address)"
+    assert client.calls == []
+
+
+def test_resolve_source_ipv4_returns_fixed_ipv4():
+    source = SourceConfig(type="fixed", value="203.0.113.10")
+
+    assert resolve_source_ipv4(source) == "203.0.113.10"
+
+
+def test_resolve_source_ipv4_returns_public_ipv4(monkeypatch):
+    source = SourceConfig(type="public")
+
+    monkeypatch.setattr("scru.update.resolve_public_source_ipv4", lambda: "198.51.100.7")
+
+    assert resolve_source_ipv4(source) == "198.51.100.7"
+
+
+def test_process_record_rejects_invalid_public_source_before_cloudflare_calls(monkeypatch):
+    record = RecordConfig(
+        zone_id="zone-1",
+        name="www",
+        source=SourceConfig(type="public"),
+    )
+
+    class RecordingClient:
+        def __init__(self):
+            self.calls = []
+
+        def get_record(self, zone_id, name):
+            self.calls.append(("get_record", zone_id, name))
+            raise AssertionError("should not reach Cloudflare")
+
+        def update_record(self, zone_id, record_id, content, *, proxied=None, ttl=None):
+            self.calls.append(("update_record", zone_id, record_id, content, proxied, ttl))
+            raise AssertionError("should not reach Cloudflare")
+
+    client = RecordingClient()
+    monkeypatch.setattr("scru.update.resolve_public_source_ipv4", lambda: (_ for _ in ()).throw(ValueError("public IP response is empty")))
+
+    result = process_record(record, source_resolver=resolve_source_ipv4, client=client)
+
+    assert result == "www: failed (public IP response is empty)"
+    assert client.calls == []
+
+
+def test_resolve_source_ipv4_rejects_invalid_fixed_ipv4():
+    source = SourceConfig(type="fixed", value="not-an-ip")
+
+    try:
+        resolve_source_ipv4(source)
+    except ValueError as exc:
+        assert str(exc) == "'not-an-ip' does not appear to be an IPv4 or IPv6 address"
+    else:
+        raise AssertionError("expected ValueError")
+
+
+def test_resolve_source_ipv4_returns_custom_ipv4(monkeypatch):
+    source = SourceConfig(type="custom", command="echo 1.2.3.4")
+
+    monkeypatch.setattr("scru.update.resolve_custom_source_ipv4", lambda custom_source: "198.51.100.7")
+
+    assert resolve_source_ipv4(source) == "198.51.100.7"
+
+
+def test_process_record_rejects_custom_source_failure_before_cloudflare_calls(monkeypatch):
+    record = RecordConfig(
+        zone_id="zone-1",
+        name="www",
+        source=SourceConfig(type="custom", command="get-ip"),
+    )
+
+    class RecordingClient:
+        def __init__(self):
+            self.calls = []
+
+        def get_record(self, zone_id, name):
+            self.calls.append(("get_record", zone_id, name))
+            raise AssertionError("should not reach Cloudflare")
+
+        def update_record(self, zone_id, record_id, content, *, proxied=None, ttl=None):
+            self.calls.append(("update_record", zone_id, record_id, content, proxied, ttl))
+            raise AssertionError("should not reach Cloudflare")
+
+    client = RecordingClient()
+    monkeypatch.setattr(
+        "scru.update.resolve_custom_source_ipv4",
+        lambda source: (_ for _ in ()).throw(ValueError("custom source command produced no output")),
+    )
+
+    result = process_record(record, source_resolver=resolve_source_ipv4, client=client)
+
+    assert client.calls == []
+    assert result == "www: failed (custom source command produced no output)"
+
+
+def test_main_processes_single_record_and_prints_result():
+    record = RecordConfig(
+        zone_id="zone-1",
+        name="www",
+        source=SourceConfig(type="fixed", value="203.0.113.10"),
+    )
+    config = Config(records=[record])
+    lines = []
+    client = RecordingClient(current_record={"id": "record-1", "content": "203.0.113.1"})
+
+    main(
+        config_loader=lambda path: config,
+        source_resolver=lambda source: "203.0.113.10",
+        client=client,
+        output=lines.append,
+    )
+
+    assert lines == ["www: updated"]
+
+
+def test_main_processes_multiple_records_in_order_and_skips_unchanged_records():
+    config = Config(
+        records=[
+            RecordConfig(
+                zone_id="zone-1",
+                name="www",
+                source=SourceConfig(type="fixed", value="203.0.113.10"),
+            ),
+            RecordConfig(
+                zone_id="zone-2",
+                name="api",
+                source=SourceConfig(type="fixed", value="203.0.113.11"),
+            ),
+        ]
+    )
+    lines = []
+    order = []
+    client = SequencedClient(
+        current_records={
+            ("zone-1", "www"): {"id": "record-1", "content": "203.0.113.10"},
+            ("zone-2", "api"): {"id": "record-2", "content": "203.0.113.1"},
+        }
+    )
+
+    main(
+        config_loader=lambda path: config,
+        source_resolver=lambda source: order.append(source.value) or str(source.value),
+        client=client,
+        output=lines.append,
+    )
+
+    assert order == ["203.0.113.10", "203.0.113.11"]
+    assert lines == ["www: skipped (unchanged)", "api: updated"]
+    assert client.calls == [
+        ("get_record", "zone-1", "www"),
+        ("get_record", "zone-2", "api"),
+        ("update_record", "zone-2", "record-2", "203.0.113.11", None, None),
+    ]
+
+
+def test_main_keeps_running_after_record_failure():
+    config = Config(
+        records=[
+            RecordConfig(
+                zone_id="zone-1",
+                name="www",
+                source=SourceConfig(type="fixed", value="203.0.113.10"),
+            ),
+            RecordConfig(
+                zone_id="zone-2",
+                name="api",
+                source=SourceConfig(type="fixed", value="203.0.113.11"),
+            ),
+            RecordConfig(
+                zone_id="zone-3",
+                name="db",
+                source=SourceConfig(type="fixed", value="203.0.113.12"),
+            ),
+        ]
+    )
+    lines = []
+    client = SequencedClient(
+        current_records={
+            ("zone-1", "www"): {"id": "record-1", "content": "203.0.113.1"},
+            ("zone-3", "db"): {"id": "record-3", "content": "203.0.113.1"},
+        },
+        failing_records={("zone-2", "api")},
+    )
+
+    main(
+        config_loader=lambda path: config,
+        source_resolver=lambda source: str(source.value),
+        client=client,
+        output=lines.append,
+    )
+
+    assert lines == ["www: updated", "api: failed (boom)", "db: updated"]
+    assert client.calls == [
+        ("get_record", "zone-1", "www"),
+        ("update_record", "zone-1", "record-1", "203.0.113.10", None, None),
+        ("get_record", "zone-2", "api"),
+        ("get_record", "zone-3", "db"),
+        ("update_record", "zone-3", "record-3", "203.0.113.12", None, None),
+    ]

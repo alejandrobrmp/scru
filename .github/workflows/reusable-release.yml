@@ -1,0 +1,41 @@
+name: Reusable Release
+
+on:
+  workflow_call:
+    inputs:
+      artifact-name:
+        type: string
+        default: "dist"
+        description: Name of the artifact to download
+      tag-name:
+        type: string
+        required: true
+        description: Tag name for the release
+  workflow_dispatch:
+    inputs:
+      artifact-name:
+        type: string
+        default: "dist"
+        description: Name of the artifact to download
+      tag-name:
+        type: string
+        required: true
+        description: Tag name for the release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: dist/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ inputs.tag-name }}
+          files: dist/**
