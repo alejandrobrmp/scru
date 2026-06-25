@@ -55,10 +55,16 @@ jobs:
           git tag ${{ needs.get-version.outputs.version }}
           git push origin ${{ needs.get-version.outputs.version }}
 
-      - name: Download artifacts
+      - name: Download dist artifacts
         uses: actions/download-artifact@v4
         with:
           name: dist
+          path: dist/
+
+      - name: Download ARM64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-arm64
           path: dist/
 
       - name: Create GitHub Release
