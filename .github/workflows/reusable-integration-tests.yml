@@ -1,0 +1,44 @@
+name: Reusable Integration Tests
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        type: string
+        default: "3.11"
+        description: Python version to use
+  workflow_dispatch:
+    inputs:
+      python-version:
+        type: string
+        default: "3.11"
+        description: Python version to use
+
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      SCRU_INTEGRATION_ZONE_NAME: ${{ vars.SCRU_INTEGRATION_ZONE_NAME }}
+      SCRU_INTEGRATION_RECORD_NAME: ${{ vars.SCRU_INTEGRATION_RECORD_NAME }}
+      SCRU_INTEGRATION_RECORD_NAME_1: ${{ vars.SCRU_INTEGRATION_RECORD_NAME_1 }}
+      SCRU_INTEGRATION_RECORD_NAME_2: ${{ vars.SCRU_INTEGRATION_RECORD_NAME_2 }}
+      SCRU_INTEGRATION_RECORD_NAME_3: ${{ vars.SCRU_INTEGRATION_RECORD_NAME_3 }}
+      SCRU_INTEGRATION_MISSING_RECORD_NAME: ${{ vars.SCRU_INTEGRATION_MISSING_RECORD_NAME }}
+      SCRU_INTEGRATION_SENTINEL_RECORD_NAME: ${{ vars.SCRU_INTEGRATION_SENTINEL_RECORD_NAME }}
+      SCRU_INTEGRATION_INITIAL_IP: ${{ vars.SCRU_INTEGRATION_INITIAL_IP }}
+      SCRU_INTEGRATION_TARGET_IP: ${{ vars.SCRU_INTEGRATION_TARGET_IP }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install project and test dependencies
+        run: python -m pip install ".[test]"
+
+      - name: Run integration tests
+        run: python -m pytest tests/integration
